@@ -438,11 +438,18 @@ EOF
     mkdir -p /etc/stunnel
     mkdir -p /var/run/stunnel4
     mkdir -p /var/lib/stunnel4
+    mkdir -p /var/log/stunnel4
     
-    # Set proper ownership with fallback
-    chown stunnel4:stunnel4 /var/run/stunnel4 2>/dev/null || chown root:root /var/run/stunnel4
-    chown stunnel4:stunnel4 /var/lib/stunnel4 2>/dev/null || chown root:root /var/lib/stunnel4
-    chmod 755 /var/run/stunnel4 /var/lib/stunnel4
+    # Set proper ownership with fallback - try stunnel4 user first, then root
+    if id stunnel4 >/dev/null 2>&1; then
+        chown stunnel4:stunnel4 /var/run/stunnel4 2>/dev/null || chown root:root /var/run/stunnel4
+        chown stunnel4:stunnel4 /var/lib/stunnel4 2>/dev/null || chown root:root /var/lib/stunnel4
+        chown stunnel4:stunnel4 /var/log/stunnel4 2>/dev/null || chown root:root /var/log/stunnel4
+    else
+        chown root:root /var/run/stunnel4 /var/lib/stunnel4 /var/log/stunnel4
+    fi
+    
+    chmod 755 /var/run/stunnel4 /var/lib/stunnel4 /var/log/stunnel4
     
     # Create configuration with user detection
     local stunnel_user="root"
@@ -453,38 +460,33 @@ EOF
         stunnel_group="stunnel4"
     fi
     
+    # Create a simple, working configuration for Ubuntu 24.04
     cat > /etc/stunnel/stunnel.conf <<EOC
-# Stunnel configuration for Ubuntu 22.04/24.04 compatibility
-pid = /var/run/stunnel4/stunnel.pid
-output = /var/log/stunnel4/stunnel.log
-
-# User configuration - use stunnel4 if available, root as fallback
-setuid = ${stunnel_user}
-setgid = ${stunnel_group}
-
-# Socket optimization
-socket = r:TCP_NODELAY=1
-socket = l:TCP_NODELAY=1
-
-# Logging for debugging
-debug = 7
-
-# Certificate
+# Simple stunnel configuration for Ubuntu 24.04
 cert = /etc/stunnel/stunnel.pem
+pid = /var/run/stunnel4/stunnel.pid
+
+# Run as root for maximum compatibility
+# setuid = stunnel4
+# setgid = stunnel4
+
+# Logging
+debug = 7
+output = /var/log/stunnel4/stunnel.log
 
 [ssh-tunnel]
 accept = ${port}
 connect = 127.0.0.1:22
 
-# Your preferred TLS_AES_256_GCM_SHA384 cipher
+# Your preferred cipher
 ciphers = TLS_AES_256_GCM_SHA384
 
-# SSL/TLS options for Ubuntu 24.04 compatibility
+# Basic SSL options
 options = NO_SSLv2
 options = NO_SSLv3
-options = NO_TLSv1
-options = NO_TLSv1_1
 EOC
+
+    echo -e "${GREEN}✓ Configuration created${RESET}"
 
     # Ensure certificate has correct permissions for the user we're using
     if [[ "$stunnel_user" == "stunnel4" ]]; then
@@ -495,51 +497,8 @@ EOC
         chmod 600 /etc/stunnel/stunnel.pem
     fi
     
-    # Create log directory
-    mkdir -p /var/log/stunnel4
-    chown stunnel4:stunnel4 /var/log/stunnel4 2>/dev/null || true
-    
-    # Test stunnel configuration first (using -n for syntax check)
-    echo -e "${YELLOW}Testing stunnel configuration...${RESET}"
-    if ! stunnel4 -n /etc/stunnel/stunnel.conf >/dev/null 2>&1; then
-        echo -e "${RED}✗ Configuration test failed, trying simplified config...${RESET}"
-        
-        # Create a simplified, more compatible configuration
-        cat > /etc/stunnel/stunnel.conf <<EOC
-# Simplified stunnel configuration for Ubuntu 24.04 compatibility
-pid = /var/run/stunnel4/stunnel.pid
-cert = /etc/stunnel/stunnel.pem
-
-# Run as root to avoid permission issues
-# setuid = stunnel4
-# setgid = stunnel4
-
-# Simplified SSL/TLS settings for better compatibility
-sslVersion = all
-options = NO_SSLv2
-options = NO_SSLv3
-options = NO_TLSv1
-options = NO_TLSv1_1
-
-# Logging for debugging
-debug = 7
-output = /var/log/stunnel4/stunnel.log
-
-[ssh-tunnel]
-accept = ${port}
-connect = 127.0.0.1:22
-EOC
-        
-        echo -e "${YELLOW}Testing simplified configuration...${RESET}"
-        if stunnel4 -n /etc/stunnel/stunnel.conf >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ Simplified configuration works${RESET}"
-        else
-            echo -e "${RED}✗ Configuration still fails:${RESET}"
-            stunnel4 -n /etc/stunnel/stunnel.conf 2>&1
-        fi
-    else
-        echo -e "${GREEN}✓ Configuration test passed${RESET}"
-    fi
+    # Create a working stunnel configuration (no test mode available in stunnel4 5.72)
+    echo -e "${YELLOW}Creating optimized stunnel configuration...${RESET}"
 
     # Start and enable stunnel with proper error handling
     echo -e "${YELLOW}Starting stunnel4 service...${RESET}"
@@ -585,9 +544,15 @@ EOC
         echo -e "${WHITE}Service Status:${RESET}"
         systemctl status stunnel4 --no-pager -l 2>/dev/null | head -10 || echo "Could not get service status"
         
-        # Test configuration manually
-        echo -e "\n${WHITE}Configuration Test:${RESET}"
-        stunnel4 -n /etc/stunnel/stunnel.conf 2>&1 || echo "Configuration test failed"
+        # Show configuration file
+        echo -e "\n${WHITE}Configuration File:${RESET}"
+        if [[ -f /etc/stunnel/stunnel.conf ]]; then
+            echo "Configuration exists at /etc/stunnel/stunnel.conf"
+            echo "First 10 lines:"
+            head -10 /etc/stunnel/stunnel.conf 2>/dev/null || echo "Could not read configuration"
+        else
+            echo "Configuration file missing: /etc/stunnel/stunnel.conf"
+        fi
         
         echo -e "\n${WHITE}Certificate Check:${RESET}"
         if [[ -f /etc/stunnel/stunnel.pem ]]; then
@@ -627,7 +592,8 @@ EOC
         echo -e "\n${YELLOW}Debugging commands:${RESET}"
         echo -e "${WHITE}systemctl restart stunnel4${RESET}"
         echo -e "${WHITE}journalctl -u stunnel4 -f${RESET}"
-        echo -e "${WHITE}stunnel4 -n /etc/stunnel/stunnel.conf${RESET}"
+        echo -e "${WHITE}cat /etc/stunnel/stunnel.conf${RESET}"
+        echo -e "${WHITE}stunnel4 /etc/stunnel/stunnel.conf${RESET} (manual start)"
     fi
 }
 
