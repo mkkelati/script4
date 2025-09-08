@@ -14,6 +14,7 @@ Advanced SSH user management system with comprehensive monitoring and SSL tunnel
 - **Online Users** - Real-time user monitoring (SSH, Dropbear, OpenVPN)
 - **Network Traffic** - Live network monitoring with nload integration
 - **User Report** - Comprehensive user status with expiration tracking
+- **User Limiter** - Advanced connection enforcement with automatic violation handling
 - **Professional Interface** - Boxed displays with timestamps and status icons
 - **Connection Statistics** - Live connection counting with auto-refresh
 
@@ -45,15 +46,16 @@ menu
 
 ## 📱 Menu Options
 ```
-1) Create User          - Add SSH users with limits
-2) Delete User          - Remove users + cleanup
-3) Limit User           - Set connection limits
-4) Connection Mode      - Configure SSH-SSL tunnel
-5) Online Users         - Real-time monitoring
-6) Network Traffic      - Live network stats
-7) User Report          - User status overview
-8) Change Password      - Update user passwords
-9) Uninstall           - Complete removal
+1)  Create User          - Add SSH users with limits
+2)  Delete User          - Remove users + cleanup
+3)  Limit User           - Set connection limits
+4)  Connection Mode      - Configure SSH-SSL tunnel
+5)  Online Users         - Real-time monitoring
+6)  Network Traffic      - Live network stats
+7)  User Report          - User status overview
+8)  Change Password      - Update user passwords
+9)  User Limiter         - Advanced connection enforcement
+10) Uninstall           - Complete removal
 ```
 
 ## 🔐 Key Features
@@ -61,8 +63,35 @@ menu
 - **Multi-protocol support**: SSH (22), SSL (443)
 - **Connection limiting** via PAM
 - **Real-time monitoring** with auto-refresh every 3 seconds
+- **Advanced User Limiter** with automatic enforcement and violation logging
 - **Professional UI** with boxed interfaces and status icons
 - **Safe arithmetic operations** with error handling
+
+## 🛡️ Advanced User Limiter
+The integrated User Limiter provides comprehensive connection monitoring and enforcement:
+
+### Features:
+- **Multi-protocol Monitoring**: SSH and OpenVPN connection tracking
+- **Automatic Enforcement**: Kills excess connections when limits are exceeded
+- **Background Operation**: Runs as screen session with configurable intervals
+- **Violation Logging**: Detailed logs with timestamps for all violations
+- **Database Management**: Separate database for limiter-specific user limits
+- **Real-time Status**: Live connection monitoring with violation detection
+- **Autostart Support**: Automatic startup on system boot
+
+### User Limiter Database:
+```
+/root/usuarios.db        # Format: username limit
+user1 2                  # Allows 2 simultaneous connections
+user2 1                  # Allows 1 connection only
+admin 5                  # Allows 5 connections
+```
+
+### Management Interface:
+- **Start/Stop Service**: Toggle limiter with loading animations
+- **Status Monitoring**: Real-time connection tracking display
+- **Log Viewing**: Connect to live logs via screen session
+- **Database Setup**: Interactive database management tools
 
 ## 📊 File Structure
 ```
@@ -70,6 +99,7 @@ menu
 /etc/mk-script/senha/           # Password storage
 /etc/VPSManager/Exp             # Expiration dates
 /etc/stunnel/stunnel.conf       # TLS configuration
+/root/usuarios.db               # User Limiter database
 /usr/local/bin/menu             # Main script
 ```
 
