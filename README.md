@@ -7,10 +7,13 @@ Advanced SSH user management system with comprehensive monitoring and SSL tunnel
 ### 🔐 User Management
 - **Create Users** - Advanced user creation with validation and expiration dates
 - **Delete Users** - Comprehensive user removal with session management
+- **Change Password** - Secure password management with dual storage
 - **User Limits** - Connection limit management with PAM integration
 
 ### 📊 Monitoring & Reports
 - **Online Users** - Real-time user monitoring (SSH, Dropbear, OpenVPN)
+- **Network Traffic** - Live network monitoring with nload integration
+- **User Report** - Comprehensive user status with expiration tracking
 - **Professional Interface** - Boxed displays with timestamps and status icons
 - **Connection Statistics** - Live connection counting with auto-refresh
 
@@ -47,7 +50,10 @@ menu
 3) Limit User           - Set connection limits
 4) Connection Mode      - Configure SSH-SSL tunnel
 5) Online Users         - Real-time monitoring
-6) Uninstall           - Complete removal
+6) Network Traffic      - Live network stats
+7) User Report          - User status overview
+8) Change Password      - Update user passwords
+9) Uninstall           - Complete removal
 ```
 
 ## 🔐 Key Features

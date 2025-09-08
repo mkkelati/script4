@@ -452,6 +452,170 @@ show_online_users() {
     done
 }
 
+# Network traffic monitoring
+show_network_traffic() {
+    clear
+    display_header_with_timestamp "NETWORK TRAFFIC"
+    
+    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}        NETWORK TRAFFIC MONITOR         ${BLUE}│${RESET}"
+    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    
+    if command -v nload >/dev/null 2>&1; then
+        echo -e "${WHITE}Starting network traffic monitor...${RESET}"
+        echo -e "${YELLOW}Press 'q' to quit nload${RESET}\n"
+        sleep 2
+        nload
+    else
+        echo -e "${YELLOW}Installing network monitoring tool...${RESET}"
+        apt-get update -y >/dev/null 2>&1
+        if apt-get install -y nload >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Installation complete${RESET}"
+            echo -e "${WHITE}Starting network traffic monitor...${RESET}"
+            sleep 2
+            nload
+        else
+            echo -e "${RED}✗ Failed to install nload${RESET}"
+            echo -e "${WHITE}Showing basic network statistics:${RESET}\n"
+            
+            # Basic network info
+            echo -e "${BLUE}Network Interfaces:${RESET}"
+            ip -4 addr show | grep -E '^[0-9]+:|inet ' | while read line; do
+                if [[ $line =~ ^[0-9]+: ]]; then
+                    echo -e "${WHITE}$line${RESET}"
+                else
+                    echo -e "  ${GREEN}$line${RESET}"
+                fi
+            done
+        fi
+    fi
+}
+
+# User report with comprehensive information
+show_user_report() {
+    clear
+    display_header_with_timestamp "USER REPORT"
+    
+    echo -e "\n${BLUE}┌─────────────────────────────────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}                           USER STATUS REPORT                        ${BLUE}│${RESET}"
+    echo -e "${BLUE}├─────────────────────────────────────────────────────────────────────┤${RESET}"
+    printf "${BLUE}│${WHITE} %-12s │ %-8s │ %-8s │ %-12s │ %-8s │ %-8s ${BLUE}│${RESET}\n" "USERNAME" "LIMIT" "ACTIVE" "EXPIRES" "PASSWORD" "STATUS"
+    echo -e "${BLUE}├─────────────────────────────────────────────────────────────────────┤${RESET}"
+    
+    local total_users=0
+    local active_users=0
+    local expired_users=0
+    
+    if [[ -s "$USER_LIST_FILE" ]]; then
+        while IFS=: read -r username limit; do
+            [[ -z "$username" ]] && continue
+            total_users=$((total_users + 1))
+            
+            local ssh_count=$(safe_number $(get_ssh_connections "$username"))
+            local dropbear_count=$(safe_number $(get_dropbear_connections "$username"))
+            local openvpn_count=$(safe_number $(get_openvpn_connections "$username"))
+            local total_conn=$((ssh_count + dropbear_count + openvpn_count))
+            local exp_date=$(get_user_expiration "$username")
+            
+            # Get password
+            local password="N/A"
+            if [[ -f "$PASSWORD_DIR/$username" ]]; then
+                password=$(cat "$PASSWORD_DIR/$username" 2>/dev/null || echo "N/A")
+            elif [[ -f "$LEGACY_PASSWORD_DIR/$username" ]]; then
+                password=$(cat "$LEGACY_PASSWORD_DIR/$username" 2>/dev/null || echo "N/A")
+            fi
+            
+            # Determine status
+            local status="Active"
+            local status_color="${GREEN}"
+            
+            if is_user_expired "$username"; then
+                status="Expired"
+                status_color="${RED}"
+                expired_users=$((expired_users + 1))
+            elif [[ $total_conn -gt 0 ]]; then
+                status="Online"
+                status_color="${GREEN}"
+                active_users=$((active_users + 1))
+            else
+                status="Offline"
+                status_color="${YELLOW}"
+            fi
+            
+            printf "${BLUE}│${WHITE} %-12s ${BLUE}│${WHITE} %-8s ${BLUE}│${WHITE} %-8s ${BLUE}│${WHITE} %-12s ${BLUE}│${WHITE} %-8s ${BLUE}│${status_color} %-8s ${BLUE}│${RESET}\n" \
+                "$username" "$limit" "$total_conn" "$exp_date" "${password:0:8}" "$status"
+                
+        done < "$USER_LIST_FILE"
+    else
+        printf "${BLUE}│${YELLOW} %-67s ${BLUE}│${RESET}\n" "No users found in database"
+    fi
+    
+    echo -e "${BLUE}├─────────────────────────────────────────────────────────────────────┤${RESET}"
+    printf "${BLUE}│${WHITE} Total: ${GREEN}%-3d${WHITE} │ Active: ${GREEN}%-3d${WHITE} │ Expired: ${RED}%-3d${WHITE}                    ${BLUE}│${RESET}\n" \
+        "$total_users" "$active_users" "$expired_users"
+    echo -e "${BLUE}└─────────────────────────────────────────────────────────────────────┘${RESET}"
+}
+
+# Change user password
+change_user_password() {
+    clear
+    display_header_with_timestamp "CHANGE PASSWORD"
+    
+    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}         CHANGE USER PASSWORD          ${BLUE}│${RESET}"
+    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    
+    [[ -s "$USER_LIST_FILE" ]] || { 
+        echo -e "${YELLOW}No users to modify.${RESET}"; 
+        return; 
+    }
+    
+    echo -e "${WHITE}Select user to change password:${RESET}\n"
+    list_users
+    echo
+    
+    read -p "Enter user number: " num
+    [[ "$num" =~ ^[0-9]+$ ]] || { 
+        echo -e "${RED}Invalid selection.${RESET}"; 
+        return; 
+    }
+    
+    username=$(sed -n "${num}p" "$USER_LIST_FILE" | cut -d: -f1)
+    [[ -n "$username" ]] || { 
+        echo -e "${RED}User not found.${RESET}"; 
+        return; 
+    }
+    
+    echo -e "${WHITE}Changing password for user: ${GREEN}$username${RESET}\n"
+    
+    read -s -p "Enter new password (blank = auto-generate): " new_password
+    echo
+    
+    [[ -z "$new_password" ]] && { 
+        new_password=$(generate_password); 
+        echo -e "${GREEN}Generated password: ${WHITE}$new_password${RESET}"; 
+    }
+    
+    # Update system password
+    if echo "${username}:${new_password}" | chpasswd 2>/dev/null; then
+        # Update password files
+        mkdir -p "$PASSWORD_DIR"
+        echo "$new_password" > "$PASSWORD_DIR/$username"
+        
+        # Update legacy location if it exists
+        if [[ -d "$LEGACY_PASSWORD_DIR" ]]; then
+            mkdir -p "$LEGACY_PASSWORD_DIR"
+            echo "$new_password" > "$LEGACY_PASSWORD_DIR/$username"
+        fi
+        
+        echo -e "\n${GREEN}✓ Password changed successfully${RESET}"
+        echo -e "${WHITE}Username:${RESET} ${GREEN}$username${RESET}"
+        echo -e "${WHITE}New Password:${RESET} ${GREEN}$new_password${RESET}"
+    else
+        echo -e "\n${RED}✗ Failed to change password${RESET}"
+    fi
+}
+
 # Print main menu
 print_menu() {
     clear
@@ -466,10 +630,13 @@ print_menu() {
     echo -e "${WHITE}3)${RESET} ${YELLOW}Limit User${RESET}           - Set connection limits"
     echo -e "${WHITE}4)${RESET} ${BLUE}Connection Mode${RESET}      - Configure SSH-SSL tunnel"
     echo -e "${WHITE}5)${RESET} ${GREEN}Online Users${RESET}         - Real-time monitoring"
-    echo -e "${WHITE}6)${RESET} ${RED}Uninstall${RESET}           - Complete removal"
+    echo -e "${WHITE}6)${RESET} ${BLUE}Network Traffic${RESET}      - Live network stats"
+    echo -e "${WHITE}7)${RESET} ${YELLOW}User Report${RESET}          - User status overview"
+    echo -e "${WHITE}8)${RESET} ${GREEN}Change Password${RESET}      - Update user passwords"
+    echo -e "${WHITE}9)${RESET} ${RED}Uninstall${RESET}           - Complete removal"
     
     echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
-    echo -e "${BLUE}│${WHITE} Select option [1-6] or CTRL+C to exit ${BLUE}│${RESET}"
+    echo -e "${BLUE}│${WHITE} Select option [1-9] or CTRL+C to exit ${BLUE}│${RESET}"
     echo -e "${BLUE}└────────────────────────────────────────┘${RESET}"
     echo -n -e "${WHITE}Enter your choice: ${RESET}"
 }
@@ -557,11 +724,14 @@ main() {
             3) limit_user ;;
             4) configure_tunnel ;;
             5) show_online_users ;;
-            6) uninstall_script ;;
-            *) echo -e "${RED}Invalid option. Please select 1-6.${RESET}" ;;
+            6) show_network_traffic ;;
+            7) show_user_report ;;
+            8) change_user_password ;;
+            9) uninstall_script ;;
+            *) echo -e "${RED}Invalid option. Please select 1-9.${RESET}" ;;
         esac
         
-        [[ "$choice" != "6" ]] && {
+        [[ "$choice" != "9" ]] && {
             echo -e "\n${WHITE}Press any key to return to main menu...${RESET}"
             read -n1 -s -r
         }
