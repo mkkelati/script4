@@ -15,7 +15,46 @@ echo ""
 echo "[*] Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y >/dev/null 2>&1
-apt-get install -y stunnel4 openssl screen wget curl net-tools >/dev/null 2>&1
+
+# Install basic dependencies including net-tools for netstat command
+apt-get install -y openssl screen wget curl net-tools iproute2 systemd >/dev/null 2>&1
+
+# Install stunnel4 with proper configuration for newer Ubuntu versions
+echo "[*] Installing and configuring stunnel4..."
+apt-get install -y stunnel4 >/dev/null 2>&1
+
+# Fix stunnel4 configuration for Ubuntu 22.04/24.04
+if [[ -f /etc/default/stunnel4 ]]; then
+    sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null
+    echo 'ENABLED=1' >> /etc/default/stunnel4 2>/dev/null
+else
+    echo 'ENABLED=1' > /etc/default/stunnel4
+fi
+
+# Create stunnel4 service override for systemd (Ubuntu 22.04/24.04 fix)
+mkdir -p /etc/systemd/system/stunnel4.service.d
+cat > /etc/systemd/system/stunnel4.service.d/override.conf << 'EOF'
+[Unit]
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=
+ExecStart=/usr/bin/stunnel4 /etc/stunnel/stunnel.conf
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/stunnel4/stunnel.pid
+User=stunnel4
+Group=stunnel4
+RuntimeDirectory=stunnel4
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd daemon
+systemctl daemon-reload >/dev/null 2>&1
 
 echo "[*] Configuring stunnel service..."
 if [[ -f /etc/default/stunnel4 ]]; then

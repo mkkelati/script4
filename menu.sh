@@ -354,7 +354,42 @@ configure_tunnel() {
             echo -e "${RED}Failed to install stunnel4${RESET}"; 
             return; 
         }
-        sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null
+        
+        # Configure stunnel4 for Ubuntu 22.04/24.04 compatibility
+        echo -e "${YELLOW}Configuring stunnel4 for Ubuntu 22.04/24.04...${RESET}"
+        
+        # Fix default configuration
+        if [[ -f /etc/default/stunnel4 ]]; then
+            sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null
+            echo 'ENABLED=1' >> /etc/default/stunnel4 2>/dev/null
+        else
+            echo 'ENABLED=1' > /etc/default/stunnel4
+        fi
+        
+        # Create systemd service override for newer Ubuntu versions
+        mkdir -p /etc/systemd/system/stunnel4.service.d
+        cat > /etc/systemd/system/stunnel4.service.d/override.conf << 'EOF'
+[Unit]
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=
+ExecStart=/usr/bin/stunnel4 /etc/stunnel/stunnel.conf
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/stunnel4/stunnel.pid
+User=stunnel4
+Group=stunnel4
+RuntimeDirectory=stunnel4
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        
+        # Reload systemd daemon
+        systemctl daemon-reload >/dev/null 2>&1
     fi
     
     # Generate certificate if needed
@@ -367,17 +402,34 @@ configure_tunnel() {
         chmod 600 /etc/stunnel/stunnel.pem
     fi
     
-    # Create stunnel configuration
+    # Create stunnel configuration with Ubuntu 22.04/24.04 compatibility
+    echo -e "${YELLOW}Creating stunnel configuration...${RESET}"
+    
+    # Ensure stunnel directory exists and has correct permissions
+    mkdir -p /etc/stunnel
+    mkdir -p /var/run/stunnel4
+    chown stunnel4:stunnel4 /var/run/stunnel4 2>/dev/null || true
+    
     cat > /etc/stunnel/stunnel.conf <<EOC
-sslVersion = TLSv1.3
+# Stunnel configuration for Ubuntu 22.04/24.04 compatibility
+pid = /var/run/stunnel4/stunnel.pid
+setuid = stunnel4
+setgid = stunnel4
+
+# SSL/TLS configuration
+sslVersion = TLSv1.2
 ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+ciphers = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384
 options = NO_SSLv2
 options = NO_SSLv3
 options = NO_TLSv1
-options = NO_TLSv1.1
-options = NO_TLSv1.2
+options = NO_TLSv1_1
 options = NO_COMPRESSION
 options = NO_TICKET
+
+# Logging
+debug = 4
+output = /var/log/stunnel4/stunnel.log
 
 [ssh-tunnel]
 accept = ${port}
@@ -385,17 +437,67 @@ connect = 127.0.0.1:22
 cert = /etc/stunnel/stunnel.pem
 EOC
     
-    # Start and enable stunnel
-    systemctl enable stunnel4 >/dev/null 2>&1
-    systemctl restart stunnel4 >/dev/null 2>&1
+    # Create log directory
+    mkdir -p /var/log/stunnel4
+    chown stunnel4:stunnel4 /var/log/stunnel4 2>/dev/null || true
     
-    if systemctl is-active --quiet stunnel4; then
+    # Start and enable stunnel with proper error handling
+    echo -e "${YELLOW}Starting stunnel4 service...${RESET}"
+    
+    # Stop any existing stunnel processes
+    systemctl stop stunnel4 >/dev/null 2>&1 || true
+    pkill -f stunnel4 >/dev/null 2>&1 || true
+    
+    # Reload systemd and start service
+    systemctl daemon-reload >/dev/null 2>&1
+    systemctl enable stunnel4 >/dev/null 2>&1
+    
+    # Give it a moment and start
+    sleep 2
+    systemctl start stunnel4 >/dev/null 2>&1
+    
+    # Wait and check status
+    sleep 3
+    
+    # Check if stunnel is running and listening on the port (with fallback for newer Ubuntu)
+    local port_listening=false
+    if command -v netstat >/dev/null 2>&1; then
+        netstat -tlnp | grep -q ":$port " && port_listening=true
+    elif command -v ss >/dev/null 2>&1; then
+        ss -tlnp | grep -q ":$port " && port_listening=true
+    fi
+    
+    if systemctl is-active --quiet stunnel4 && [[ "$port_listening" == true ]]; then
         echo -e "\n${GREEN}✓ SSH-SSL tunnel configured successfully${RESET}"
         echo -e "${WHITE}SSL Port:${RESET} ${GREEN}$port${RESET}"
         echo -e "${WHITE}Target:${RESET} ${GREEN}127.0.0.1:22${RESET}"
-        echo -e "${WHITE}Protocol:${RESET} ${GREEN}TLS 1.3${RESET}"
+        echo -e "${WHITE}Protocol:${RESET} ${GREEN}TLS 1.2/1.3${RESET}"
+        echo -e "${WHITE}Status:${RESET} ${GREEN}Active and listening${RESET}"
+        
+        # Show service status
+        echo -e "\n${BLUE}Service Status:${RESET}"
+        systemctl status stunnel4 --no-pager -l | head -5
     else
         echo -e "\n${RED}✗ Failed to start stunnel service${RESET}"
+        echo -e "${YELLOW}Troubleshooting information:${RESET}"
+        
+        # Show detailed error information
+        echo -e "${WHITE}Service Status:${RESET}"
+        systemctl status stunnel4 --no-pager -l | head -10
+        
+        echo -e "\n${WHITE}Log Output:${RESET}"
+        tail -10 /var/log/stunnel4/stunnel.log 2>/dev/null || echo "No log file found"
+        
+        echo -e "\n${WHITE}Port Check:${RESET}"
+        if command -v netstat >/dev/null 2>&1; then
+            netstat -tlnp | grep ":$port " || echo "Port $port is not listening"
+        elif command -v ss >/dev/null 2>&1; then
+            ss -tlnp | grep ":$port " || echo "Port $port is not listening"
+        else
+            echo "No network tools available to check port $port"
+        fi
+        
+        echo -e "\n${YELLOW}Try running: systemctl restart stunnel4${RESET}"
     fi
 }
 
