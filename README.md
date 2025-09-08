@@ -29,17 +29,26 @@ Advanced SSH user management system with comprehensive monitoring and SSL tunnel
 
 ## 🚀 Quick Install
 
-### One-Line Installation
+### Method 1: One-Line Installation
 ```bash
-sudo apt-get update -y && sudo apt-get install -y wget && wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/main/install.sh && sudo bash install.sh
+sudo apt-get update -y && sudo apt-get install -y wget git && git clone https://github.com/mkkelati/script4.git && cd script4 && sudo bash install.sh
 ```
 
-### Step-by-Step Installation
+### Method 2: Direct Download (Alternative)
 ```bash
 sudo apt-get update -y && sudo apt-get install -y wget
 wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/main/install.sh
 sudo bash install.sh
 ```
+
+### Method 3: Manual Clone
+```bash
+git clone https://github.com/mkkelati/script4.git
+cd script4
+sudo bash install.sh
+```
+
+**Note:** If Method 2 shows 0 bytes download, use Method 1 or 3 instead (GitHub CDN delay).
 
 ## 📋 Menu Options
 
