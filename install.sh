@@ -69,11 +69,25 @@ mkdir -p /etc/stunnel
 STUNNEL_CERT="/etc/stunnel/stunnel.pem"
 if [[ ! -f "$STUNNEL_CERT" ]]; then
   echo "[*] Generating self-signed SSL certificate for stunnel..."
+  
+  # Create certificate
   openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes \
     -subj "/C=US/ST=State/L=City/O=MK-Script/OU=IT/CN=$(hostname)" \
-    -keyout /etc/stunnel/key.pem -out /etc/stunnel/cert.pem
+    -keyout /etc/stunnel/key.pem -out /etc/stunnel/cert.pem >/dev/null 2>&1
+  
+  # Combine certificate and key
   cat /etc/stunnel/key.pem /etc/stunnel/cert.pem > "$STUNNEL_CERT"
-  chmod 600 "$STUNNEL_CERT"
+  
+  # Set proper ownership and permissions for stunnel4 user
+  chown stunnel4:stunnel4 "$STUNNEL_CERT" 2>/dev/null || chown root:stunnel4 "$STUNNEL_CERT"
+  chmod 640 "$STUNNEL_CERT"
+  
+  # Fix directory permissions
+  chown -R stunnel4:stunnel4 /etc/stunnel 2>/dev/null || chown -R root:stunnel4 /etc/stunnel
+  chmod 755 /etc/stunnel
+  
+  # Clean up individual files
+  rm -f /etc/stunnel/key.pem /etc/stunnel/cert.pem
 fi
 
 STUNNEL_CONF="/etc/stunnel/stunnel.conf"

@@ -392,29 +392,74 @@ EOF
         systemctl daemon-reload >/dev/null 2>&1
     fi
     
-    # Generate certificate if needed
+    # Generate certificate if needed with proper permissions
     if [[ ! -f /etc/stunnel/stunnel.pem ]]; then
         echo -e "${YELLOW}Generating SSL certificate...${RESET}"
+        
+        # Create certificate with proper permissions for stunnel4 user
         openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes \
             -subj "/C=US/ST=State/L=City/O=MK-Script/OU=IT/CN=$(hostname)" \
             -keyout /etc/stunnel/key.pem -out /etc/stunnel/cert.pem >/dev/null 2>&1
+        
+        # Combine certificate and key
         cat /etc/stunnel/key.pem /etc/stunnel/cert.pem > /etc/stunnel/stunnel.pem
-        chmod 600 /etc/stunnel/stunnel.pem
+        
+        # Set proper ownership and permissions for stunnel4 user
+        chown stunnel4:stunnel4 /etc/stunnel/stunnel.pem 2>/dev/null || chown root:stunnel4 /etc/stunnel/stunnel.pem
+        chmod 640 /etc/stunnel/stunnel.pem
+        
+        # Also fix permissions on the directory
+        chown -R stunnel4:stunnel4 /etc/stunnel 2>/dev/null || chown -R root:stunnel4 /etc/stunnel
+        chmod 755 /etc/stunnel
+        
+        # Clean up individual files
+        rm -f /etc/stunnel/key.pem /etc/stunnel/cert.pem
+        
+        echo -e "${GREEN}✓ SSL certificate generated with proper permissions${RESET}"
+    else
+        # Fix permissions on existing certificate
+        echo -e "${YELLOW}Fixing permissions on existing certificate...${RESET}"
+        chown stunnel4:stunnel4 /etc/stunnel/stunnel.pem 2>/dev/null || chown root:stunnel4 /etc/stunnel/stunnel.pem
+        chmod 640 /etc/stunnel/stunnel.pem
+        chown -R stunnel4:stunnel4 /etc/stunnel 2>/dev/null || chown -R root:stunnel4 /etc/stunnel
+        chmod 755 /etc/stunnel
     fi
     
     # Create stunnel configuration with Ubuntu 22.04/24.04 compatibility
     echo -e "${YELLOW}Creating stunnel configuration...${RESET}"
     
+    # Ensure stunnel4 user exists and has proper setup
+    if ! id stunnel4 >/dev/null 2>&1; then
+        echo -e "${YELLOW}Creating stunnel4 user...${RESET}"
+        useradd -r -s /bin/false -d /var/lib/stunnel4 -c "stunnel service" stunnel4 2>/dev/null || true
+    fi
+    
     # Ensure stunnel directory exists and has correct permissions
     mkdir -p /etc/stunnel
     mkdir -p /var/run/stunnel4
-    chown stunnel4:stunnel4 /var/run/stunnel4 2>/dev/null || true
+    mkdir -p /var/lib/stunnel4
+    
+    # Set proper ownership with fallback
+    chown stunnel4:stunnel4 /var/run/stunnel4 2>/dev/null || chown root:root /var/run/stunnel4
+    chown stunnel4:stunnel4 /var/lib/stunnel4 2>/dev/null || chown root:root /var/lib/stunnel4
+    chmod 755 /var/run/stunnel4 /var/lib/stunnel4
+    
+    # Create configuration with user detection
+    local stunnel_user="root"
+    local stunnel_group="root"
+    
+    if id stunnel4 >/dev/null 2>&1; then
+        stunnel_user="stunnel4"
+        stunnel_group="stunnel4"
+    fi
     
     cat > /etc/stunnel/stunnel.conf <<EOC
 # Stunnel configuration for Ubuntu 22.04/24.04 compatibility
 pid = /var/run/stunnel4/stunnel.pid
-setuid = stunnel4
-setgid = stunnel4
+
+# User configuration - use stunnel4 if available, root as fallback
+setuid = ${stunnel_user}
+setgid = ${stunnel_group}
 
 # SSL/TLS configuration
 sslVersion = TLSv1.2
@@ -436,6 +481,15 @@ accept = ${port}
 connect = 127.0.0.1:22
 cert = /etc/stunnel/stunnel.pem
 EOC
+
+    # Ensure certificate has correct permissions for the user we're using
+    if [[ "$stunnel_user" == "stunnel4" ]]; then
+        chown stunnel4:stunnel4 /etc/stunnel/stunnel.pem 2>/dev/null || chown root:stunnel4 /etc/stunnel/stunnel.pem
+        chmod 640 /etc/stunnel/stunnel.pem
+    else
+        chown root:root /etc/stunnel/stunnel.pem
+        chmod 600 /etc/stunnel/stunnel.pem
+    fi
     
     # Create log directory
     mkdir -p /var/log/stunnel4
