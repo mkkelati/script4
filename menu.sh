@@ -479,11 +479,13 @@ accept = ${port}
 connect = 127.0.0.1:22
 
 # Your preferred cipher
-ciphers = TLS_AES_256_GCM_SHA384
+ciphersuites = TLS_AES_256_GCM_SHA384
 
 # Basic SSL options
 options = NO_SSLv2
 options = NO_SSLv3
+sslVersion = TLSv1.3
+client = no
 EOC
 
     echo -e "${GREEN}✓ Configuration created${RESET}"
