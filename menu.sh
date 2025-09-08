@@ -456,37 +456,34 @@ EOF
     cat > /etc/stunnel/stunnel.conf <<EOC
 # Stunnel configuration for Ubuntu 22.04/24.04 compatibility
 pid = /var/run/stunnel4/stunnel.pid
+output = /var/log/stunnel4/stunnel.log
 
 # User configuration - use stunnel4 if available, root as fallback
 setuid = ${stunnel_user}
 setgid = ${stunnel_group}
 
-# SSL/TLS configuration optimized for Ubuntu 24.04
-sslVersion = all
-options = NO_SSLv2
-options = NO_SSLv3
-options = NO_TLSv1
-options = NO_TLSv1_1
-
-# TLS 1.3 ciphersuites - including your preferred TLS_AES_256_GCM_SHA384
-ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
-
-# TLS 1.2 ciphers for compatibility
-ciphers = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256
-
-# Additional options for better compatibility
-options = NO_COMPRESSION
-options = SINGLE_DH_USE
-options = SINGLE_ECDH_USE
+# Socket optimization
+socket = r:TCP_NODELAY=1
+socket = l:TCP_NODELAY=1
 
 # Logging for debugging
 debug = 7
-output = /var/log/stunnel4/stunnel.log
+
+# Certificate
+cert = /etc/stunnel/stunnel.pem
 
 [ssh-tunnel]
 accept = ${port}
 connect = 127.0.0.1:22
-cert = /etc/stunnel/stunnel.pem
+
+# Your preferred TLS_AES_256_GCM_SHA384 cipher
+ciphers = TLS_AES_256_GCM_SHA384
+
+# SSL/TLS options for Ubuntu 24.04 compatibility
+options = NO_SSLv2
+options = NO_SSLv3
+options = NO_TLSv1
+options = NO_TLSv1_1
 EOC
 
     # Ensure certificate has correct permissions for the user we're using
@@ -502,9 +499,9 @@ EOC
     mkdir -p /var/log/stunnel4
     chown stunnel4:stunnel4 /var/log/stunnel4 2>/dev/null || true
     
-    # Test stunnel configuration first
+    # Test stunnel configuration first (using -n for syntax check)
     echo -e "${YELLOW}Testing stunnel configuration...${RESET}"
-    if ! /usr/bin/stunnel4 -test /etc/stunnel/stunnel.conf >/dev/null 2>&1; then
+    if ! stunnel4 -n /etc/stunnel/stunnel.conf >/dev/null 2>&1; then
         echo -e "${RED}✗ Configuration test failed, trying simplified config...${RESET}"
         
         # Create a simplified, more compatible configuration
@@ -534,11 +531,11 @@ connect = 127.0.0.1:22
 EOC
         
         echo -e "${YELLOW}Testing simplified configuration...${RESET}"
-        if /usr/bin/stunnel4 -test /etc/stunnel/stunnel.conf >/dev/null 2>&1; then
+        if stunnel4 -n /etc/stunnel/stunnel.conf >/dev/null 2>&1; then
             echo -e "${GREEN}✓ Simplified configuration works${RESET}"
         else
             echo -e "${RED}✗ Configuration still fails:${RESET}"
-            /usr/bin/stunnel4 -test /etc/stunnel/stunnel.conf 2>&1
+            stunnel4 -n /etc/stunnel/stunnel.conf 2>&1
         fi
     else
         echo -e "${GREEN}✓ Configuration test passed${RESET}"
@@ -590,7 +587,7 @@ EOC
         
         # Test configuration manually
         echo -e "\n${WHITE}Configuration Test:${RESET}"
-        /usr/bin/stunnel4 -test /etc/stunnel/stunnel.conf 2>&1 || echo "Configuration test failed"
+        stunnel4 -n /etc/stunnel/stunnel.conf 2>&1 || echo "Configuration test failed"
         
         echo -e "\n${WHITE}Certificate Check:${RESET}"
         if [[ -f /etc/stunnel/stunnel.pem ]]; then
@@ -630,7 +627,7 @@ EOC
         echo -e "\n${YELLOW}Debugging commands:${RESET}"
         echo -e "${WHITE}systemctl restart stunnel4${RESET}"
         echo -e "${WHITE}journalctl -u stunnel4 -f${RESET}"
-        echo -e "${WHITE}/usr/bin/stunnel4 -test /etc/stunnel/stunnel.conf${RESET}"
+        echo -e "${WHITE}stunnel4 -n /etc/stunnel/stunnel.conf${RESET}"
     fi
 }
 
