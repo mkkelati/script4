@@ -401,6 +401,8 @@ EOC
 
 # Show online users with real-time monitoring
 show_online_users() {
+    local refresh_count=0
+    
     while true; do
         clear
         display_header_with_timestamp "ONLINE USERS MONITOR"
@@ -451,12 +453,21 @@ show_online_users() {
         
         echo -e "${BLUE}├─────────────────────────────────────────────────────────────┤${RESET}"
         printf "${BLUE}│${WHITE} Total Users Online: ${GREEN}%-2d${WHITE}                               ${BLUE}│${RESET}\n" "$total_online"
+        echo -e "${BLUE}│${WHITE} Auto-refresh: ${GREEN}%-2d${WHITE} times                              ${BLUE}│${RESET}\n" "$refresh_count"
         echo -e "${BLUE}└─────────────────────────────────────────────────────────────┘${RESET}"
         
         echo -e "\n${WHITE}🟢 Online  🔴 Offline  ⏰ Expired${RESET}"
-        echo -e "${YELLOW}Press CTRL+C to return to main menu${RESET}"
+        echo -e "${GREEN}Press ${WHITE}ENTER${GREEN} to return to main menu or wait for auto-refresh...${RESET}"
         
-        sleep 3
+        # Wait for user input or timeout after 3 seconds
+        if read -t 3 -n 1 user_input 2>/dev/null; then
+            # If user pressed any key, exit the loop
+            if [[ -n "$user_input" ]] || [[ "$user_input" == "" ]]; then
+                break
+            fi
+        fi
+        
+        ((refresh_count++))
     done
 }
 
