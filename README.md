@@ -1,31 +1,24 @@
-# MK Script Manager v2.0 🐉
+# MK Script Manager v4.0 🚀
 
 Advanced SSH user management system with comprehensive monitoring and SSL tunneling for Ubuntu 20.04–24.04.
 
 ## ✨ Features
 
 ### 🔐 User Management
-- **Create Users** - Advanced user creation with validation and OpenVPN integration
+- **Create Users** - Advanced user creation with validation and expiration dates
 - **Delete Users** - Comprehensive user removal with session management
-- **Change Password** - Secure password management with dual storage
 - **User Limits** - Connection limit management with PAM integration
 
 ### 📊 Monitoring & Reports
-- **Online Users** - Real-time user monitoring (SSH, OpenVPN, Dropbear)
-- **User Report** - Comprehensive user status with expiration tracking
-- **Network Traffic** - Live network monitoring with nload integration
+- **Online Users** - Real-time user monitoring (SSH, Dropbear, OpenVPN)
+- **Professional Interface** - Boxed displays with timestamps and status icons
+- **Connection Statistics** - Live connection counting with auto-refresh
 
 ### 🛡️ Security & Connectivity
 - **SSH-SSL Tunneling** - Secure stunnel configuration on port 443
+- **TLS 1.3 Encryption** - Advanced cipher suites (ChaCha20-Poly1305)
 - **Connection Limits** - Per-user simultaneous connection control
-- **Password Validation** - Strong password requirements
 - **Session Management** - Active session detection and control
-
-### 🌐 OpenVPN Integration
-- **Multiple Host Support** - Vivo, Oi, and custom carrier configurations
-- **Auto Certificate Generation** - Seamless OpenVPN profile creation
-- **Bulk Configuration** - Generate multiple OVPN files simultaneously
-- **Web Download** - Direct download links for OVPN files
 
 ## 🚀 Quick Install
 
@@ -36,10 +29,9 @@ sudo apt-get update -y && sudo apt-get install -y wget && wget -O install.sh htt
 
 ### 🎯 What Gets Installed
 - **stunnel4** with TLS 1.3 encryption
-- **SSH-SSL tunnel** on port 443  
+- **SSH-SSL tunnel** on port 443
 - **Menu system** at `/usr/local/bin/menu`
 - **User management database** at `/etc/mk-script/users.txt`
-- **User Limiter** for connection monitoring
 - **Required directories** and permissions
 
 ### 🔧 Operation
@@ -51,37 +43,39 @@ menu
 ## 📱 Menu Options
 ```
 1) Create User          - Add SSH users with limits
-2) Delete User          - Remove users + cleanup  
+2) Delete User          - Remove users + cleanup
 3) Limit User           - Set connection limits
 4) Connection Mode      - Configure SSH-SSL tunnel
 5) Online Users         - Real-time monitoring
-6) User Limiter         - Advanced connection monitoring & enforcement
-7) Uninstall           - Complete removal
+6) Uninstall           - Complete removal
 ```
 
 ## 🔐 Key Features
-- **TLS 1.3** with advanced encryption
+- **TLS 1.3** with ChaCha20-Poly1305 encryption
 - **Multi-protocol support**: SSH (22), SSL (443)
 - **Connection limiting** via PAM
-- **User Limiter** for real-time monitoring & enforcement
-- **OpenVPN integration** (if available)
-- **Real-time monitoring** of active sessions
+- **Real-time monitoring** with auto-refresh every 3 seconds
+- **Professional UI** with boxed interfaces and status icons
+- **Safe arithmetic operations** with error handling
 
 ## 📊 File Structure
 ```
 /etc/mk-script/users.txt        # User database
-/etc/mk-script/senha/           # Password storage  
+/etc/mk-script/senha/           # Password storage
+/etc/VPSManager/Exp             # Expiration dates
 /etc/stunnel/stunnel.conf       # TLS configuration
 /usr/local/bin/menu             # Main script
 ```
 
 ## ⚙️ Technical Notes
 - Uses **main branch** from `github.com/mkkelati/script4`
-- **TLS encryption**: Advanced cipher suites
+- **TLS cipher**: `TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256`
 - **SSL tunnel**: Port 443 → SSH port 22
 - **User limits**: Stored in `/etc/security/limits.d/`
+- **Database format**: `username:connection_limit`
 
 ## 🔧 System Requirements
+
 - **OS**: Ubuntu 20.04 - 24.04 LTS
 - **RAM**: Minimum 512MB
 - **Storage**: 100MB free space
@@ -95,31 +89,61 @@ menu
 - Server Port: **443**
 - SSL/TLS: **Enabled**
 
-## 🗂️ File Structure
+## 🎨 Professional Interface
 
+### Real-Time Monitoring Display:
 ```
-/etc/mk-script/           # Main configuration
-├── users.txt            # User database
-└── senha/               # Password storage
+┌─────────────────────────────────────────────────────────────┐
+│                    REAL-TIME CONNECTIONS                    │
+├─────────────────────────────────────────────────────────────┤
+│ USERNAME     │ SSH      │ DROPBEAR │ OPENVPN  │ TOTAL    │ STATUS │
+├─────────────────────────────────────────────────────────────┤
+│ user1        │ 2        │ 0        │ 1        │ 3        │ 🟢     │
+│ user2        │ 0        │ 0        │ 0        │ 0        │ 🔴     │
+├─────────────────────────────────────────────────────────────┤
+│ Total Users Online: 1                                       │
+└─────────────────────────────────────────────────────────────┘
 
-/etc/VPSManager/          # Legacy compatibility
-├── Exp                   # Expired users tracking
-└── senha/               # Alternative password storage
-
-/etc/security/limits.d/   # Connection limits
-└── mk-script-limits.conf
-
-/var/www/html/openvpn/    # OVPN downloads
+🟢 Online  🔴 Offline  ⏰ Expired
 ```
 
-## 📈 Statistics Tracking
+## 🔧 Key Technical Concepts
 
-The system tracks:
-- Total registered users
-- Currently online users
-- Expired user accounts
-- Connection types (SSH, OpenVPN, Dropbear)
-- User activity and session duration
+### Proven Working Connection Detection:
+```bash
+# SSH Detection - Simple and reliable
+get_ssh_connections() {
+    local user="$1"
+    if grep -q "^$user:" /etc/passwd 2>/dev/null; then
+        ps -u "$user" 2>/dev/null | grep -c sshd || echo "0"
+    else
+        echo "0"
+    fi
+}
+```
+
+### Safe Arithmetic Operations:
+```bash
+safe_number() {
+    local value="$1"
+    if [[ "$value" =~ ^[0-9]+$ ]]; then
+        echo "$value"
+    else
+        echo "0"
+    fi
+}
+```
+
+### Real-Time Monitoring Loop:
+```bash
+# Auto-refresh every 3 seconds
+while true; do
+    clear
+    display_header_with_timestamp
+    monitor_all_users
+    sleep 3
+done
+```
 
 ## 🔄 Updates & Support
 
@@ -129,11 +153,11 @@ The system tracks:
 
 ## 🔄 Uninstall
 ```bash
-menu  # Select option 7
+menu  # Select option 6
 ```
 
 This removes all users, configurations, and services completely.
 
 ---
 
-© 2025 MK Script Manager - Advanced SSH Management System 🐉
+© 2025 MK Script Manager v4.0 - Advanced SSH Management System 🚀
