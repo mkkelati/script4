@@ -31,13 +31,13 @@ Advanced SSH user management system with comprehensive monitoring and SSL tunnel
 
 ### One-Line Installation
 ```bash
-sudo apt-get update -y && sudo apt-get install -y wget && wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/master/install.sh && sudo bash install.sh
+sudo apt-get update -y && sudo apt-get install -y wget && wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/main/install.sh && sudo bash install.sh
 ```
 
 ### Step-by-Step Installation
 ```bash
 sudo apt-get update -y && sudo apt-get install -y wget
-wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/master/install.sh
+wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/main/install.sh
 sudo bash install.sh
 ```
 
