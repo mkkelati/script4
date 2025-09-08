@@ -384,21 +384,21 @@ configure_tunnel() {
             echo -e "${GREEN}✓ Latest stunnel 5.75 installed${RESET}"
         fi
     fi
-        
-        # Configure stunnel4 for Ubuntu 22.04/24.04 compatibility
-        echo -e "${YELLOW}Configuring stunnel4 for Ubuntu 22.04/24.04...${RESET}"
-        
-        # Fix default configuration
-        if [[ -f /etc/default/stunnel4 ]]; then
-            sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null
-            echo 'ENABLED=1' >> /etc/default/stunnel4 2>/dev/null
-        else
-            echo 'ENABLED=1' > /etc/default/stunnel4
-        fi
-        
-        # Create systemd service override for newer Ubuntu versions
-        mkdir -p /etc/systemd/system/stunnel4.service.d
-        cat > /etc/systemd/system/stunnel4.service.d/override.conf << 'EOF'
+    
+    # Configure stunnel4 for Ubuntu 22.04/24.04 compatibility
+    echo -e "${YELLOW}Configuring stunnel4 for Ubuntu 22.04/24.04...${RESET}"
+    
+    # Fix default configuration
+    if [[ -f /etc/default/stunnel4 ]]; then
+        sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null
+        echo 'ENABLED=1' >> /etc/default/stunnel4 2>/dev/null
+    else
+        echo 'ENABLED=1' > /etc/default/stunnel4
+    fi
+    
+    # Create systemd service override for newer Ubuntu versions
+    mkdir -p /etc/systemd/system/stunnel4.service.d
+    cat > /etc/systemd/system/stunnel4.service.d/override.conf << 'EOF'
 [Unit]
 After=network-online.target
 Wants=network-online.target
@@ -417,10 +417,9 @@ RuntimeDirectoryMode=0755
 [Install]
 WantedBy=multi-user.target
 EOF
-        
-        # Reload systemd daemon
-        systemctl daemon-reload >/dev/null 2>&1
-    fi
+    
+    # Reload systemd daemon
+    systemctl daemon-reload >/dev/null 2>&1
     
     # Generate certificate if needed with proper permissions
     if [[ ! -f /etc/stunnel/stunnel.pem ]]; then
