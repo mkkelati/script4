@@ -19,9 +19,36 @@ apt-get update -y >/dev/null 2>&1
 # Install basic dependencies including net-tools for netstat command
 apt-get install -y openssl screen wget curl net-tools iproute2 systemd >/dev/null 2>&1
 
-# Install stunnel4 with proper configuration for newer Ubuntu versions
-echo "[*] Installing and configuring stunnel4..."
-apt-get install -y stunnel4 >/dev/null 2>&1
+# Install latest stunnel with proper configuration for newer Ubuntu versions
+echo "[*] Installing and configuring latest stunnel..."
+
+# Install build dependencies first
+apt-get install -y build-essential libssl-dev zlib1g-dev wget tar >/dev/null 2>&1
+
+# Try to install latest stunnel from source
+cd /tmp
+echo "[*] Downloading stunnel 5.75 (latest)..."
+if wget -q https://www.stunnel.org/downloads/stunnel-5.75.tar.gz; then
+    echo "[*] Compiling latest stunnel..."
+    tar -xzf stunnel-5.75.tar.gz
+    cd stunnel-5.75
+    ./configure --prefix=/usr/local --enable-ipv6 >/dev/null 2>&1
+    make >/dev/null 2>&1
+    make install >/dev/null 2>&1
+    
+    # Create symlinks for compatibility
+    ln -sf /usr/local/bin/stunnel /usr/bin/stunnel4 2>/dev/null
+    ln -sf /usr/local/bin/stunnel /usr/bin/stunnel 2>/dev/null
+    
+    # Clean up
+    cd /
+    rm -rf /tmp/stunnel-5.75*
+    
+    echo "[*] Latest stunnel 5.75 installed successfully"
+else
+    echo "[*] Fallback: Installing stunnel4 from Ubuntu repository..."
+    apt-get install -y stunnel4 >/dev/null 2>&1
+fi
 
 # Fix stunnel4 configuration for Ubuntu 22.04/24.04
 if [[ -f /etc/default/stunnel4 ]]; then
@@ -94,21 +121,30 @@ STUNNEL_CONF="/etc/stunnel/stunnel.conf"
 if [[ ! -f "$STUNNEL_CONF" ]]; then
   echo "[*] Setting up stunnel configuration..."
   cat > "$STUNNEL_CONF" << 'EOC'
-# stunnel configuration for SSH-SSL tunneling
-sslVersion = TLSv1.3
-ciphersuites = TLS_AES_256_GCM_SHA384
-options = NO_SSLv2
-options = NO_SSLv3
-options = NO_TLSv1
-options = NO_TLSv1.1
-options = NO_TLSv1.2
-options = NO_COMPRESSION
-options = NO_TICKET
+# Latest stunnel configuration with TLS 1.3 support
+cert = /etc/stunnel/stunnel.pem
+pid = /var/run/stunnel4/stunnel.pid
+
+# Logging
+debug = 7
+output = /var/log/stunnel4/stunnel.log
 
 [ssh-tunnel]
 accept = 443
 connect = 127.0.0.1:22
-cert = /etc/stunnel/stunnel.pem
+
+# TLS 1.3 ciphersuites (your preferred)
+ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+
+# TLS 1.2 fallback ciphers
+ciphers = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256
+
+# SSL/TLS version support
+sslVersion = all
+options = NO_SSLv2
+options = NO_SSLv3
+options = NO_TLSv1
+options = NO_TLSv1_1
 EOC
 fi
 

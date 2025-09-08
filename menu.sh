@@ -346,14 +346,44 @@ configure_tunnel() {
         return; 
     }
     
-    # Install stunnel if not present
-    if ! command -v stunnel4 &>/dev/null; then
-        echo -e "${YELLOW}Installing stunnel4...${RESET}"
+    # Install latest stunnel if not present
+    if ! command -v stunnel4 &>/dev/null && ! command -v stunnel &>/dev/null; then
+        echo -e "${YELLOW}Installing latest stunnel...${RESET}"
+        
+        # Install build dependencies
         apt-get update -y >/dev/null 2>&1
-        apt-get install -y stunnel4 >/dev/null 2>&1 || { 
-            echo -e "${RED}Failed to install stunnel4${RESET}"; 
-            return; 
+        apt-get install -y build-essential libssl-dev zlib1g-dev wget tar >/dev/null 2>&1
+        
+        # Download and compile latest stunnel
+        cd /tmp
+        echo -e "${YELLOW}Downloading stunnel 5.75 (latest)...${RESET}"
+        wget -q https://www.stunnel.org/downloads/stunnel-5.75.tar.gz || {
+            echo -e "${YELLOW}Fallback: Installing from Ubuntu repository...${RESET}"
+            apt-get install -y stunnel4 >/dev/null 2>&1 || { 
+                echo -e "${RED}Failed to install stunnel${RESET}"; 
+                return; 
+            }
         }
+        
+        if [[ -f stunnel-5.75.tar.gz ]]; then
+            echo -e "${YELLOW}Compiling stunnel 5.75...${RESET}"
+            tar -xzf stunnel-5.75.tar.gz
+            cd stunnel-5.75
+            ./configure --prefix=/usr/local --enable-ipv6 >/dev/null 2>&1
+            make >/dev/null 2>&1
+            make install >/dev/null 2>&1
+            
+            # Create symlinks for compatibility
+            ln -sf /usr/local/bin/stunnel /usr/bin/stunnel4 2>/dev/null
+            ln -sf /usr/local/bin/stunnel /usr/bin/stunnel 2>/dev/null
+            
+            # Clean up
+            cd /
+            rm -rf /tmp/stunnel-5.75*
+            
+            echo -e "${GREEN}✓ Latest stunnel 5.75 installed${RESET}"
+        fi
+    fi
         
         # Configure stunnel4 for Ubuntu 22.04/24.04 compatibility
         echo -e "${YELLOW}Configuring stunnel4 for Ubuntu 22.04/24.04...${RESET}"
@@ -460,9 +490,9 @@ EOF
         stunnel_group="stunnel4"
     fi
     
-    # Create a simple, working configuration for Ubuntu 24.04
+    # Create configuration for latest stunnel with TLS 1.3 support
     cat > /etc/stunnel/stunnel.conf <<EOC
-# Simple stunnel configuration for Ubuntu 24.04
+# Latest stunnel configuration with TLS 1.3 support
 cert = /etc/stunnel/stunnel.pem
 pid = /var/run/stunnel4/stunnel.pid
 
@@ -478,14 +508,18 @@ output = /var/log/stunnel4/stunnel.log
 accept = ${port}
 connect = 127.0.0.1:22
 
-# Your preferred cipher
-ciphersuites = TLS_AES_256_GCM_SHA384
+# Your preferred TLS 1.3 cipher with latest stunnel
+ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
 
-# Basic SSL options
+# TLS 1.2 fallback ciphers
+ciphers = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256
+
+# SSL/TLS version support
+sslVersion = all
 options = NO_SSLv2
 options = NO_SSLv3
-sslVersion = TLSv1.3
-client = no
+options = NO_TLSv1
+options = NO_TLSv1_1
 EOC
 
     echo -e "${GREEN}✓ Configuration created${RESET}"
