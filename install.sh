@@ -1,15 +1,21 @@
 #!/bin/bash
-# install.sh - Installation script for MK Script Manager (Ubuntu 20.04 - 24.04)
+# MK Script Manager v4.0 - Installation Script
+# Compatible with Ubuntu 20.04 - 24.04 LTS
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run this installer as root (using sudo)."
   exit 1
 fi
 
-echo "=== Installing MK Script Manager ==="
+clear
+echo "==========================================="
+echo "    MK Script Manager v4.0 Installer"
+echo "==========================================="
+echo ""
 echo "[*] Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y && apt-get install -y stunnel4 openssl screen wget curl net-tools
+apt-get update -y >/dev/null 2>&1
+apt-get install -y stunnel4 openssl screen wget curl net-tools >/dev/null 2>&1
 
 echo "[*] Configuring stunnel service..."
 if [[ -f /etc/default/stunnel4 ]]; then
@@ -57,41 +63,45 @@ echo "[*] Starting stunnel service..."
 systemctl restart stunnel4
 systemctl enable stunnel4
 
-echo "[*] Deploying menu script..."
+echo "[*] Installing menu system..."
 INSTALL_DIR="/usr/local/bin"
 
-# Check if we're in the cloned repository directory
-if [[ -f "menu.sh" ]]; then
-  echo "[*] Using local menu.sh from repository..."
-  cp -f menu.sh "${INSTALL_DIR}/menu"
+# Always download the latest version from GitHub for consistency
+echo "[*] Downloading menu script..."
+if wget -q https://raw.githubusercontent.com/mkkelati/script4/main/menu.sh -O "${INSTALL_DIR}/menu"; then
   chmod +x "${INSTALL_DIR}/menu"
+  echo "[*] Menu system installed successfully"
 else
-  # Download menu.sh from GitHub if not present locally
-  echo "[*] Downloading menu.sh from GitHub..."
-  if wget -q https://raw.githubusercontent.com/mkkelati/script4/main/menu.sh -O "${INSTALL_DIR}/menu"; then
-    chmod +x "${INSTALL_DIR}/menu"
-  else
-    echo "[ERROR] Failed to download menu.sh. Please ensure you have internet connection."
-    exit 1
-  fi
+  echo "[ERROR] Failed to download menu script. Check internet connection."
+  exit 1
 fi
 
+echo "[*] Setting up configuration..."
 mkdir -p /etc/mk-script
 touch /etc/mk-script/users.txt
 
+# Create password storage directory
+mkdir -p /etc/mk-script/senha
+
 echo "[*] Verifying installation..."
 if [[ -x "${INSTALL_DIR}/menu" ]]; then
-  echo "[+] Installation complete! ✓"
+  clear
   echo ""
   echo "==========================================="
-  echo "  MK Script Manager Successfully Installed"
+  echo "   🚀 MK Script Manager v4.0 Installed"
   echo "==========================================="
   echo ""
-  echo "To start the SSH management system, run:"
-  echo "  menu"
+  echo "✓ stunnel4 with TLS 1.3 encryption"
+  echo "✓ SSH-SSL tunnel on port 443"
+  echo "✓ User management system"
+  echo "✓ Connection monitoring"
+  echo "✓ User Limiter (NEW)"
   echo ""
-  echo "Or from any directory:"
-  echo "  sudo menu"
+  echo "🔧 To start the management system:"
+  echo "   menu"
+  echo ""
+  echo "📱 Features: SSH, SSL, User Limits, Monitoring"
+  echo "==========================================="
   echo ""
 else
   echo "[ERROR] Installation failed. Menu command not found."

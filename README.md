@@ -29,47 +29,59 @@ Advanced SSH user management system with comprehensive monitoring and SSL tunnel
 
 ## 🚀 Quick Install
 
-### Method 1: One-Line Installation
+### ⚡ One-Line Installation
 ```bash
-sudo apt-get update -y && sudo apt-get install -y wget git && git clone https://github.com/mkkelati/script4.git && cd script4 && sudo bash install.sh
+sudo apt-get update -y && sudo apt-get install -y wget && wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/main/install.sh && sudo bash install.sh
 ```
 
-### Method 2: Direct Download (Alternative)
+### 🎯 What Gets Installed
+- **stunnel4** with TLS 1.3 encryption
+- **SSH-SSL tunnel** on port 443  
+- **Menu system** at `/usr/local/bin/menu`
+- **User management database** at `/etc/mk-script/users.txt`
+- **User Limiter** for connection monitoring
+- **Required directories** and permissions
+
+### 🔧 Operation
+After installation, run:
 ```bash
-sudo apt-get update -y && sudo apt-get install -y wget
-wget -O install.sh https://raw.githubusercontent.com/mkkelati/script4/main/install.sh
-sudo bash install.sh
+menu
 ```
 
-### Method 3: Manual Clone
-```bash
-git clone https://github.com/mkkelati/script4.git
-cd script4
-sudo bash install.sh
+## 📱 Menu Options
 ```
-
-**Note:** If Method 2 shows 0 bytes download, use Method 1 or 3 instead (GitHub CDN delay).
-
-## 📋 Menu Options
-
-After installation, run the menu system:
-```bash
-sudo menu
-```
-
-**Available Options:**
-```
-1) Create User          - Add new SSH users with advanced options
-2) Delete User          - Remove users with session management
-3) Limit User           - Set connection limits per user
-4) Connection Mode      - Configure SSH-SSL tunneling
-5) Online Users         - Monitor active connections
+1) Create User          - Add SSH users with limits
+2) Delete User          - Remove users + cleanup  
+3) Limit User           - Set connection limits
+4) Connection Mode      - Configure SSH-SSL tunnel
+5) Online Users         - Real-time monitoring
 6) User Limiter         - Advanced connection monitoring & enforcement
-7) Uninstall           - Complete system removal
+7) Uninstall           - Complete removal
 ```
+
+## 🔐 Key Features
+- **TLS 1.3** with advanced encryption
+- **Multi-protocol support**: SSH (22), SSL (443)
+- **Connection limiting** via PAM
+- **User Limiter** for real-time monitoring & enforcement
+- **OpenVPN integration** (if available)
+- **Real-time monitoring** of active sessions
+
+## 📊 File Structure
+```
+/etc/mk-script/users.txt        # User database
+/etc/mk-script/senha/           # Password storage  
+/etc/stunnel/stunnel.conf       # TLS configuration
+/usr/local/bin/menu             # Main script
+```
+
+## ⚙️ Technical Notes
+- Uses **main branch** from `github.com/mkkelati/script4`
+- **TLS encryption**: Advanced cipher suites
+- **SSL tunnel**: Port 443 → SSH port 22
+- **User limits**: Stored in `/etc/security/limits.d/`
 
 ## 🔧 System Requirements
-
 - **OS**: Ubuntu 20.04 - 24.04 LTS
 - **RAM**: Minimum 512MB
 - **Storage**: 100MB free space
@@ -115,13 +127,12 @@ The system tracks:
 - **Issues**: Report bugs and feature requests
 - **Releases**: Check for updates and new features
 
-## 🚫 Uninstall
+## 🔄 Uninstall
+```bash
+menu  # Select option 7
+```
 
-Use menu option 7 to completely remove the system:
-- Removes all managed users
-- Cleans configuration files
-- Stops and removes services
-- Restores system to original state
+This removes all users, configurations, and services completely.
 
 ---
 
