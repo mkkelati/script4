@@ -41,6 +41,30 @@ safe_number() {
     fi
 }
 
+# Count currently online users in real-time
+count_online_users() {
+    local online_count=0
+    
+    if [[ -s "$USER_LIST_FILE" ]]; then
+        while IFS=: read -r username limit; do
+            [[ -z "$username" ]] && continue
+            
+            local ssh_count=$(safe_number $(get_ssh_connections "$username"))
+            local dropbear_count=$(safe_number $(get_dropbear_connections "$username"))
+            local openvpn_count=$(safe_number $(get_openvpn_connections "$username"))
+            local total_conn=$((ssh_count + dropbear_count + openvpn_count))
+            
+            # User is online if they have any active connections
+            if [[ $total_conn -gt 0 ]]; then
+                online_count=$((online_count + 1))
+            fi
+            
+        done < "$USER_LIST_FILE"
+    fi
+    
+    echo "$online_count"
+}
+
 # Display professional system dashboard (properly aligned)
 display_professional_dashboard() {
     clear
@@ -52,6 +76,7 @@ display_professional_dashboard() {
     local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | sed 's/%us,//' || echo "N/A")
     local processor=$(grep "model name" /proc/cpuinfo | head -1 | cut -d':' -f2 | awk '{print $1, $2, $3}' | sed 's/^ *//' || echo "Unknown")
     local total_users=$(wc -l < "$USER_LIST_FILE" 2>/dev/null || echo "0")
+    local online_users=$(count_online_users)
     local active_connections=$(ss -tn | grep -c ESTAB 2>/dev/null || echo "0")
     local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//' | sed 's/^ *//')
     local server_time=$(date '+%Y-%m-%d %H:%M:%S')
@@ -65,11 +90,11 @@ display_professional_dashboard() {
     printf "${BLUE}║${WHITE} 🖥️  ${YELLOW}OS: ${GREEN}%-15s ${WHITE}💾 ${YELLOW}RAM: ${GREEN}%-6s${WHITE}/${GREEN}%-6s ${WHITE}⚡ ${YELLOW}CPU: ${GREEN}%-6s ${WHITE}📈 ${YELLOW}Load: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
         "$os_info" "$used_ram" "$total_ram" "$cpu_usage%" "$load_avg"
     
-    printf "${BLUE}║${WHITE} 🔧 ${YELLOW}Processor: ${GREEN}%-25s ${WHITE}🌐 ${YELLOW}Connections: ${GREEN}%-3s ${WHITE}👥 ${YELLOW}Users: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
+    printf "${BLUE}║${WHITE} 🔧 ${YELLOW}Processor: ${GREEN}%-25s ${WHITE}🌐 ${YELLOW}Connections: ${GREEN}%-3s ${WHITE}👥 ${YELLOW}Total Users: ${GREEN}%-5s ${BLUE}║${RESET}\n" \
         "$(echo $processor | cut -c1-25)" "$active_connections" "$total_users"
     
-    printf "${BLUE}║${WHITE} 📅 ${YELLOW}Server Time: ${GREEN}%-20s ${WHITE}🔒 ${YELLOW}Status: ${GREEN}%-15s ${WHITE}                        ${BLUE}║${RESET}\n" \
-        "$server_time" "Active"
+    printf "${BLUE}║${WHITE} 📅 ${YELLOW}Server Time: ${GREEN}%-20s ${WHITE}🟢 ${YELLOW}Online Users: ${GREEN}%-3s ${WHITE}🔒 ${YELLOW}Status: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
+        "$server_time" "$online_users" "Active"
     
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
