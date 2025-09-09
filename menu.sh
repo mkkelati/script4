@@ -65,38 +65,52 @@ count_online_users() {
     echo "$online_count"
 }
 
-# Display professional system dashboard (properly aligned)
+# Display professional system dashboard (elegant design)
 display_professional_dashboard() {
     clear
     
-    # Get system information
-    local os_info=$(lsb_release -d 2>/dev/null | cut -f2 | cut -d' ' -f1-3 || echo "$(uname -s)")
-    local total_ram=$(free -h | awk '/^Mem:/ {print $2}')
-    local used_ram=$(free -h | awk '/^Mem:/ {print $3}')
-    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | sed 's/%us,//' || echo "N/A")
-    local processor=$(grep "model name" /proc/cpuinfo | head -1 | cut -d':' -f2 | awk '{print $1, $2, $3}' | sed 's/^ *//' || echo "Unknown")
-    local total_users=$(wc -l < "$USER_LIST_FILE" 2>/dev/null || echo "0")
-    local online_users=$(count_online_users)
-    local active_connections=$(ss -tn | grep -c ESTAB 2>/dev/null || echo "0")
-    local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//' | sed 's/^ *//')
-    local server_time=$(date '+%Y-%m-%d %H:%M:%S')
+    # Get system information (following the guide format)
+    local system=""
+    if [[ "$(grep -c "Ubuntu" /etc/issue.net 2>/dev/null)" = "1" ]]; then
+        system=$(cut -d' ' -f1 /etc/issue.net 2>/dev/null)
+        system+=" "
+        system+=$(cut -d' ' -f2 /etc/issue.net 2>/dev/null | awk -F "." '{print $1}')
+    elif [[ "$(grep -c "Debian" /etc/issue.net 2>/dev/null)" = "1" ]]; then
+        system=$(cut -d' ' -f1 /etc/issue.net 2>/dev/null)
+        system+=" "
+        system+=$(cut -d' ' -f3 /etc/issue.net 2>/dev/null)
+    else
+        system=$(uname -s 2>/dev/null || echo "Linux")
+    fi
     
-    # Create dashboard with proper alignment
-    echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${BLUE}║${WHITE}                           🚀 MK SCRIPT MANAGER v4.0 - Professional Dashboard                           ${BLUE}║${RESET}"
-    echo -e "${BLUE}╠══════════════════════════════════════════════════════════════════════════════════════════════════╣${RESET}"
+    local _tuser=$(wc -l < "$USER_LIST_FILE" 2>/dev/null || echo "0")
+    local _onlin=$(count_online_users)
+    local _ram=$(free -h 2>/dev/null | grep -i mem | awk '{print $2}' || echo "N/A")
+    local _usor=$(free -m 2>/dev/null | awk 'NR==2{printf "%.1f%%", $3*100/$2 }' || echo "N/A")
+    local _usop=$(top -bn1 2>/dev/null | awk '/Cpu/ { cpu = "" 100 - $8 "%" }; END { print cpu }' || echo "N/A")
+    local _core=$(grep -c cpu[0-9] /proc/stat 2>/dev/null || echo "N/A")
+    local _hora=$(date '+%H:%M:%S')
+    local _connections=$(ss -tn 2>/dev/null | grep -c ESTAB || echo "0")
     
-    # Use printf for proper alignment
-    printf "${BLUE}║${WHITE} 🖥️  ${YELLOW}OS: ${GREEN}%-15s ${WHITE}💾 ${YELLOW}RAM: ${GREEN}%-6s${WHITE}/${GREEN}%-6s ${WHITE}⚡ ${YELLOW}CPU: ${GREEN}%-6s ${WHITE}📈 ${YELLOW}Load: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
-        "$os_info" "$used_ram" "$total_ram" "$cpu_usage%" "$load_avg"
+    # Format variables for consistent width
+    local _system=$(printf '%-14s' "$system")
+    local _onlin_fmt=$(printf '%-5s' "$_onlin")
+    local _tuser_fmt=$(printf '%-5s' "$_tuser")
     
-    printf "${BLUE}║${WHITE} 🔧 ${YELLOW}Processor: ${GREEN}%-25s ${WHITE}🌐 ${YELLOW}Connections: ${GREEN}%-3s ${WHITE}👥 ${YELLOW}Total Users: ${GREEN}%-5s ${BLUE}║${RESET}\n" \
-        "$(echo $processor | cut -c1-25)" "$active_connections" "$total_users"
+    # Elegant Dashboard Header
+    echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
+    echo -e "\E[42;1;37m           •ㅤ⚡ㅤMK SCRIPT MANAGERㅤ⚡ㅤ•        \E[0m"
+    echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
     
-    printf "${BLUE}║${WHITE} 📅 ${YELLOW}Server Time: ${GREEN}%-20s ${WHITE}🟢 ${YELLOW}Online Users: ${GREEN}%-3s ${WHITE}🔒 ${YELLOW}Status: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
-        "$server_time" "$online_users" "Active"
+    # System Information Section
+    echo -e "${GREEN}◇ㅤSYSTEM          ◇ㅤRAM MEMORY    ◇ㅤPROCESSOR ${RESET}"
+    echo -e "${RED}OS: ${WHITE}$_system ${RED}Total:${WHITE} $_ram  ${RED}CPU cores: ${WHITE}$_core${RESET}"
+    echo -e "${RED}Up Time: ${WHITE}$_hora  ${RED}In use: ${WHITE}$_usor ${RED}In use: ${WHITE}$_usop${RESET}"
+    echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
     
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════════════════════════╝${RESET}"
+    # User Statistics Section
+    echo -e "${GREEN}◇ㅤOnline:${WHITE} $_onlin_fmt   ${YELLOW}◇ㅤTotal Users: ${WHITE}$_tuser_fmt   ${BLUE}◇ㅤConnections: ${WHITE}$_connections${RESET}"
+    echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
     echo ""
 }
 
@@ -1531,30 +1545,22 @@ setup_limiter_database() {
     esac
 }
 
-# Print main menu
+# Print main menu (elegant design)
 print_menu() {
     display_professional_dashboard
     
-    echo -e "${BLUE}┌────────────────────────────────────────┐${RESET}"
-    echo -e "${BLUE}│${WHITE}           MAIN MENU OPTIONS            ${BLUE}│${RESET}"
-    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    # Main Menu Options (elegant two-column layout)
+    echo -e "${RED}[${BLUE}01${RED}] ${WHITE}◇ ${GREEN}Create User${RESET}          ${RED}[${BLUE}07${RED}] ${WHITE}◇ ${YELLOW}User Report${RESET}"
+    echo -e "${RED}[${BLUE}02${RED}] ${WHITE}◇ ${RED}Delete User${RESET}          ${RED}[${BLUE}08${RED}] ${WHITE}◇ ${GREEN}Change Password${RESET}"
+    echo -e "${RED}[${BLUE}03${RED}] ${WHITE}◇ ${YELLOW}Limit User${RESET}           ${RED}[${BLUE}09${RED}] ${WHITE}◇ ${BLUE}User Limiter${RESET}"
+    echo -e "${RED}[${BLUE}04${RED}] ${WHITE}◇ ${BLUE}Connection Mode${RESET}      ${RED}[${BLUE}10${RED}] ${WHITE}◇ ${CYAN}Server Optimization${RESET}"
+    echo -e "${RED}[${BLUE}05${RED}] ${WHITE}◇ ${GREEN}Online Users${RESET}         ${RED}[${BLUE}11${RED}] ${WHITE}◇ ${RED}Uninstall${RESET}"
+    echo -e "${RED}[${BLUE}06${RED}] ${WHITE}◇ ${BLUE}Network Traffic${RESET}      ${RED}[${BLUE}00${RED}] ${WHITE}◇ ${YELLOW}EXIT ${GREEN}<${YELLOW}<${RED}< ${RESET}"
     
-    echo -e "${WHITE}1)${RESET}  ${GREEN}Create User${RESET}          - Add SSH users with limits"
-    echo -e "${WHITE}2)${RESET}  ${RED}Delete User${RESET}          - Remove users + cleanup"
-    echo -e "${WHITE}3)${RESET}  ${YELLOW}Limit User${RESET}           - Set connection limits"
-    echo -e "${WHITE}4)${RESET}  ${BLUE}Connection Mode${RESET}      - Configure SSH-SSL tunnel"
-    echo -e "${WHITE}5)${RESET}  ${GREEN}Online Users${RESET}         - Real-time monitoring"
-    echo -e "${WHITE}6)${RESET}  ${BLUE}Network Traffic${RESET}      - Live network stats"
-    echo -e "${WHITE}7)${RESET}  ${YELLOW}User Report${RESET}          - User status overview"
-    echo -e "${WHITE}8)${RESET}  ${GREEN}Change Password${RESET}      - Update user passwords"
-    echo -e "${WHITE}9)${RESET}  ${BLUE}User Limiter${RESET}         - Advanced connection enforcement"
-    echo -e "${WHITE}10)${RESET} ${CYAN}Server Optimization${RESET} - Optimize server performance"
-    echo -e "${WHITE}11)${RESET} ${RED}Uninstall${RESET}           - Complete removal"
-    
-    echo -e "\n${BLUE}┌─────────────────────────────────────────┐${RESET}"
-    echo -e "${BLUE}│${WHITE} Select option [1-11] or CTRL+C to exit ${BLUE}│${RESET}"
-    echo -e "${BLUE}└─────────────────────────────────────────┘${RESET}"
-    echo -n -e "${WHITE}Enter your choice: ${RESET}"
+    echo ""
+    echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
+    echo ""
+    echo -ne "${GREEN}◇ SELECT AN OPTION ${YELLOW}❯${RED}❯${WHITE} "
 }
 
 # Uninstall system
@@ -1801,26 +1807,32 @@ main() {
     # Main menu loop
     while true; do
         print_menu
-        echo -e "${YELLOW}Select option [1-11] (CTRL+C to exit):${RESET} \c"
         read choice
         echo
         
         case "$choice" in
-            1) create_user ;;
-            2) delete_user ;;
-            3) limit_user ;;
-            4) configure_tunnel ;;
-            5) show_online_users ;;
-            6) show_network_traffic ;;
-            7) show_user_report ;;
-            8) change_user_password ;;
-            9) user_limiter_management ;;
+            1|01) create_user ;;
+            2|02) delete_user ;;
+            3|03) limit_user ;;
+            4|04) configure_tunnel ;;
+            5|05) show_online_users ;;
+            6|06) show_network_traffic ;;
+            7|07) show_user_report ;;
+            8|08) change_user_password ;;
+            9|09) user_limiter_management ;;
             10) optimize_server ;;
             11) uninstall_script ;;
-            *) echo -e "${RED}Invalid option. Please select 1-11.${RESET}" ;;
+            0|00) 
+                echo -e "\n${YELLOW}◇ Exiting MK Script Manager...${RESET}"
+                echo -e "${GREEN}Thank you for using MK Script Manager v4.0!${RESET}"
+                sleep 2
+                clear
+                exit 0
+                ;;
+            *) echo -e "${RED}◇ Invalid option! Please try again.${RESET}" ;;
         esac
         
-        [[ "$choice" != "11" ]] && {
+        [[ "$choice" != "11" && "$choice" != "0" && "$choice" != "00" ]] && {
             echo -e "\n${WHITE}Press any key to return to main menu...${RESET}"
             read -n1 -s -r
         }
