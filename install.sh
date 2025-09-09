@@ -121,7 +121,7 @@ STUNNEL_CONF="/etc/stunnel/stunnel.conf"
 if [[ ! -f "$STUNNEL_CONF" ]]; then
   echo "[*] Setting up stunnel configuration..."
   cat > "$STUNNEL_CONF" << 'EOC'
-# Latest stunnel configuration with TLS 1.3 support
+# Mandatory TLS_AES_256_GCM_SHA384 cipher configuration
 cert = /etc/stunnel/stunnel.pem
 pid = /var/run/stunnel4/stunnel.pid
 
@@ -133,18 +133,16 @@ output = /var/log/stunnel4/stunnel.log
 accept = 443
 connect = 127.0.0.1:22
 
-# TLS 1.3 ciphersuites (your preferred)
-ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+# MANDATORY: Only TLS_AES_256_GCM_SHA384 cipher allowed
+ciphersuites = TLS_AES_256_GCM_SHA384
 
-# TLS 1.2 fallback ciphers
-ciphers = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256
-
-# SSL/TLS version support
-sslVersion = all
+# Force TLS 1.3 only for TLS_AES_256_GCM_SHA384
+sslVersion = TLSv1.3
 options = NO_SSLv2
 options = NO_SSLv3
 options = NO_TLSv1
 options = NO_TLSv1_1
+options = NO_TLSv1_2
 EOC
 fi
 

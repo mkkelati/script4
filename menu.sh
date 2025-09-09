@@ -130,7 +130,7 @@ create_user() {
     echo -e "${BLUE}│${WHITE}           CREATE NEW USER              ${BLUE}│${RESET}"
     echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
     
-    read -p "Enter new username: " username
+  read -p "Enter new username: " username
     [[ -z "$username" ]] && { echo -e "${RED}Username cannot be empty.${RESET}"; return; }
     
     # Check if user exists
@@ -160,7 +160,7 @@ create_user() {
     
     # Create system user
     if useradd -m -s /bin/false "$username" 2>/dev/null; then
-        echo "${username}:${password}" | chpasswd
+  echo "${username}:${password}" | chpasswd
         
         # Add to user database
         echo "${username}:${limit}" >> "$USER_LIST_FILE"
@@ -196,7 +196,7 @@ create_user() {
         echo -e "${WHITE}Expires:${RESET} ${GREEN}$exp_date${RESET}"
         
         # Show connection details
-        if systemctl is-active --quiet stunnel4; then
+  if systemctl is-active --quiet stunnel4; then
             PORT=$(grep -m1 "^accept = " /etc/stunnel/stunnel.conf 2>/dev/null | awk '{print $3}' || echo "443")
             echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
             echo -e "${BLUE}│${WHITE}         CONNECTION DETAILS             ${BLUE}│${RESET}"
@@ -227,7 +227,7 @@ delete_user() {
     }
     
     echo -e "${WHITE}Select user to delete:${RESET}\n"
-    list_users
+  list_users
     echo
     
     read -p "Enter user number: " num
@@ -236,7 +236,7 @@ delete_user() {
         return; 
     }
     
-    username=$(sed -n "${num}p" "$USER_LIST_FILE" | cut -d: -f1)
+  username=$(sed -n "${num}p" "$USER_LIST_FILE" | cut -d: -f1)
     [[ -n "$username" ]] || { 
         echo -e "${RED}User not found.${RESET}"; 
         return; 
@@ -251,10 +251,10 @@ delete_user() {
         pkill -u "$username" 2>/dev/null
         
         # Delete system user
-        userdel -r "$username" 2>/dev/null
+  userdel -r "$username" 2>/dev/null
         
         # Remove from database
-        sed -i "${num}d" "$USER_LIST_FILE"
+  sed -i "${num}d" "$USER_LIST_FILE"
         
         # Remove password files
         rm -f "$PASSWORD_DIR/$username" "$LEGACY_PASSWORD_DIR/$username" 2>/dev/null
@@ -265,7 +265,7 @@ delete_user() {
         fi
         
         # Remove connection limits
-        LIMIT_FILE="/etc/security/limits.d/mk-script-limits.conf"
+  LIMIT_FILE="/etc/security/limits.d/mk-script-limits.conf"
         if [[ -f "$LIMIT_FILE" ]]; then
             sed -i "/^${username}[[:space:]]\+.*maxlogins/d" "$LIMIT_FILE"
         fi
@@ -291,7 +291,7 @@ limit_user() {
     }
     
     echo -e "${WHITE}Select user to limit:${RESET}\n"
-    list_users
+  list_users
     echo
     
     read -p "Enter user number: " num
@@ -300,7 +300,7 @@ limit_user() {
         return; 
     }
     
-    username=$(sed -n "${num}p" "$USER_LIST_FILE" | cut -d: -f1)
+  username=$(sed -n "${num}p" "$USER_LIST_FILE" | cut -d: -f1)
     [[ -n "$username" ]] || { 
         echo -e "${RED}User not found.${RESET}"; 
         return; 
@@ -318,9 +318,9 @@ limit_user() {
     ' "$USER_LIST_FILE" > "${USER_LIST_FILE}.tmp" && mv "${USER_LIST_FILE}.tmp" "$USER_LIST_FILE"
     
     # Update PAM limits
-    LIMIT_FILE="/etc/security/limits.d/mk-script-limits.conf"
-    mkdir -p /etc/security/limits.d
-    sed -i "/^${username}[[:space:]]\+.*maxlogins/d" "$LIMIT_FILE" 2>/dev/null
+  LIMIT_FILE="/etc/security/limits.d/mk-script-limits.conf"
+  mkdir -p /etc/security/limits.d
+  sed -i "/^${username}[[:space:]]\+.*maxlogins/d" "$LIMIT_FILE" 2>/dev/null
     
     if [[ "$limit" -gt 0 ]]; then
         echo "${username}    -    maxlogins    $limit" >> "$LIMIT_FILE"
@@ -339,7 +339,7 @@ configure_tunnel() {
     echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
     
     read -p "Enter SSL port [default 443]: " port
-    port=${port:-443}
+  port=${port:-443}
     
     [[ "$port" =~ ^[0-9]+$ ]] && [[ "$port" -ge 1 && "$port" -le 65535 ]] || { 
         echo -e "${RED}Invalid port number.${RESET}"; 
@@ -424,16 +424,16 @@ EOF
     systemctl daemon-reload >/dev/null 2>&1
     
     # Generate certificate if needed with proper permissions
-    if [[ ! -f /etc/stunnel/stunnel.pem ]]; then
+  if [[ ! -f /etc/stunnel/stunnel.pem ]]; then
         echo -e "${YELLOW}Generating SSL certificate...${RESET}"
         
         # Create certificate with proper permissions for stunnel4 user
-        openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes \
-            -subj "/C=US/ST=State/L=City/O=MK-Script/OU=IT/CN=$(hostname)" \
+    openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes \
+      -subj "/C=US/ST=State/L=City/O=MK-Script/OU=IT/CN=$(hostname)" \
             -keyout /etc/stunnel/key.pem -out /etc/stunnel/cert.pem >/dev/null 2>&1
         
         # Combine certificate and key
-        cat /etc/stunnel/key.pem /etc/stunnel/cert.pem > /etc/stunnel/stunnel.pem
+    cat /etc/stunnel/key.pem /etc/stunnel/cert.pem > /etc/stunnel/stunnel.pem
         
         # Set proper ownership and permissions for stunnel4 user
         chown stunnel4:stunnel4 /etc/stunnel/stunnel.pem 2>/dev/null || chown root:stunnel4 /etc/stunnel/stunnel.pem
@@ -491,9 +491,9 @@ EOF
         stunnel_group="stunnel4"
     fi
     
-    # Create configuration for latest stunnel with TLS 1.3 support
-    cat > /etc/stunnel/stunnel.conf <<EOC
-# Latest stunnel configuration with TLS 1.3 support
+    # Create configuration for mandatory TLS_AES_256_GCM_SHA384 cipher
+  cat > /etc/stunnel/stunnel.conf <<EOC
+# Mandatory TLS_AES_256_GCM_SHA384 cipher configuration
 cert = /etc/stunnel/stunnel.pem
 pid = /var/run/stunnel4/stunnel.pid
 
@@ -509,18 +509,16 @@ output = /var/log/stunnel4/stunnel.log
 accept = ${port}
 connect = 127.0.0.1:22
 
-# Your preferred TLS 1.3 cipher with latest stunnel
-ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+# MANDATORY: Only TLS_AES_256_GCM_SHA384 cipher allowed
+ciphersuites = TLS_AES_256_GCM_SHA384
 
-# TLS 1.2 fallback ciphers
-ciphers = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256
-
-# SSL/TLS version support
-sslVersion = all
+# Force TLS 1.3 only for TLS_AES_256_GCM_SHA384
+sslVersion = TLSv1.3
 options = NO_SSLv2
 options = NO_SSLv3
 options = NO_TLSv1
 options = NO_TLSv1_1
+options = NO_TLSv1_2
 EOC
 
     echo -e "${GREEN}✓ Configuration created${RESET}"
@@ -761,7 +759,7 @@ show_user_report() {
     local expired_users=0
     
     if [[ -s "$USER_LIST_FILE" ]]; then
-        while IFS=: read -r username limit; do
+  while IFS=: read -r username limit; do
             [[ -z "$username" ]] && continue
             total_users=$((total_users + 1))
             
@@ -1265,7 +1263,7 @@ setup_limiter_database() {
                     # Remove existing entry and add new one
                     sed -i "/^$username /d" "$LIMITER_DATABASE" 2>/dev/null
                     echo "$username $limit" >> "$LIMITER_DATABASE"
-                done < "$USER_LIST_FILE"
+  done < "$USER_LIST_FILE"
                 echo -e "${GREEN}✓ Import completed${RESET}"
             else
                 echo -e "\n${RED}Main database not found${RESET}"
@@ -1323,15 +1321,15 @@ uninstall_script() {
         
         # Stop services
         echo -e "${WHITE}[1/6] Stopping services...${RESET}"
-        systemctl stop stunnel4 2>/dev/null
+  systemctl stop stunnel4 2>/dev/null
         systemctl disable stunnel4 2>/dev/null
         
         # Remove users
         echo -e "${WHITE}[2/6] Removing managed users...${RESET}"
         if [[ -s "$USER_LIST_FILE" ]]; then
-            while IFS=: read -r username limit; do
+  while IFS=: read -r username limit; do
                 [[ -n "$username" ]] && userdel -r "$username" 2>/dev/null
-            done < "$USER_LIST_FILE"
+  done < "$USER_LIST_FILE"
         fi
         
         # Remove configurations
@@ -1355,7 +1353,7 @@ uninstall_script() {
         echo -e "\n${GREEN}✓ MK Script Manager uninstalled successfully${RESET}"
         echo -e "${WHITE}Thank you for using MK Script Manager v4.0!${RESET}\n"
         
-        exit 0
+  exit 0
     else
         echo -e "\n${YELLOW}Uninstall cancelled${RESET}"
     fi
@@ -1373,17 +1371,17 @@ main() {
     mkdir -p "$(dirname "$USER_LIST_FILE")" "$PASSWORD_DIR"
     
     # Main menu loop
-    while true; do
-        print_menu
-        read choice
-        echo
+while true; do
+  print_menu
+  read choice
+  echo
         
-        case "$choice" in
-            1) create_user ;;
-            2) delete_user ;;
-            3) limit_user ;;
-            4) configure_tunnel ;;
-            5) show_online_users ;;
+  case "$choice" in
+    1) create_user ;;
+    2) delete_user ;;
+    3) limit_user ;;
+    4) configure_tunnel ;;
+    5) show_online_users ;;
             6) show_network_traffic ;;
             7) show_user_report ;;
             8) change_user_password ;;
