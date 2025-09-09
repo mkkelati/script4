@@ -41,9 +41,9 @@ safe_number() {
     fi
 }
 
-# Count currently online users in real-time
+# Count total connections for all users (not unique users)
 count_online_users() {
-    local online_count=0
+    local total_connections=0
     
     if [[ -s "$USER_LIST_FILE" ]]; then
         while IFS=: read -r username limit; do
@@ -54,15 +54,13 @@ count_online_users() {
             local openvpn_count=$(safe_number $(get_openvpn_connections "$username"))
             local total_conn=$((ssh_count + dropbear_count + openvpn_count))
             
-            # User is online if they have any active connections
-            if [[ $total_conn -gt 0 ]]; then
-                online_count=$((online_count + 1))
-            fi
+            # Add all connections for this user to total
+            total_connections=$((total_connections + total_conn))
             
         done < "$USER_LIST_FILE"
     fi
     
-    echo "$online_count"
+    echo "$total_connections"
 }
 
 # Disconnect all active connections for a specific user
@@ -140,15 +138,20 @@ display_professional_dashboard() {
     local _usop=$(top -bn1 2>/dev/null | awk '/Cpu/ { cpu = "" 100 - $8 "%" }; END { print cpu }' || echo "N/A")
     local _core=$(grep -c cpu[0-9] /proc/stat 2>/dev/null || echo "N/A")
     local _hora=$(date '+%H:%M:%S')
-    # Count total SSH/VPN connections for all users
-    local _connections=0
+    # Count active users (users with at least one connection)
+    local _active_users=0
     if [[ -s "$USER_LIST_FILE" ]]; then
         while IFS=: read -r username limit; do
             [[ -z "$username" ]] && continue
             local ssh_count=$(safe_number $(get_ssh_connections "$username"))
             local dropbear_count=$(safe_number $(get_dropbear_connections "$username"))
             local openvpn_count=$(safe_number $(get_openvpn_connections "$username"))
-            _connections=$((_connections + ssh_count + dropbear_count + openvpn_count))
+            local total_conn=$((ssh_count + dropbear_count + openvpn_count))
+            
+            # Count user as active if they have any connections
+            if [[ $total_conn -gt 0 ]]; then
+                _active_users=$((_active_users + 1))
+            fi
         done < "$USER_LIST_FILE"
     fi
     
@@ -169,7 +172,7 @@ display_professional_dashboard() {
     echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
     
     # User Statistics Section
-    echo -e "${GREEN}◇ㅤOnline:${WHITE} $_onlin_fmt   ${YELLOW}◇ㅤTotal Users: ${WHITE}$_tuser_fmt   ${BLUE}◇ㅤConnections: ${WHITE}$_connections${RESET}"
+    echo -e "${GREEN}◇ㅤOnline:${WHITE} $_onlin_fmt   ${YELLOW}◇ㅤTotal Users: ${WHITE}$_tuser_fmt   ${BLUE}◇ㅤActive Users: ${WHITE}$_active_users${RESET}"
     echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
     echo ""
 }
