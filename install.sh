@@ -40,11 +40,32 @@ if wget -q https://www.stunnel.org/downloads/stunnel-5.75.tar.gz; then
     ln -sf /usr/local/bin/stunnel /usr/bin/stunnel4 2>/dev/null
     ln -sf /usr/local/bin/stunnel /usr/bin/stunnel 2>/dev/null
     
+    # Create proper systemd service for compiled stunnel
+    cat > /etc/systemd/system/stunnel4.service << 'EOF'
+[Unit]
+Description=Stunnel TLS tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/stunnel /etc/stunnel/stunnel.conf
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/stunnel4/stunnel.pid
+User=root
+Group=root
+RuntimeDirectory=stunnel4
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
     # Clean up
     cd /
     rm -rf /tmp/stunnel-5.75*
     
-    echo "[*] Latest stunnel 5.75 installed successfully"
+    echo "[*] Latest stunnel 5.75 installed successfully with systemd service"
 else
     echo "[*] Fallback: Installing stunnel4 from Ubuntu repository..."
     apt-get install -y stunnel4 >/dev/null 2>&1
@@ -58,29 +79,8 @@ else
     echo 'ENABLED=1' > /etc/default/stunnel4
 fi
 
-# Create stunnel4 service override for systemd (Ubuntu 22.04/24.04 fix)
-mkdir -p /etc/systemd/system/stunnel4.service.d
-cat > /etc/systemd/system/stunnel4.service.d/override.conf << 'EOF'
-[Unit]
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=forking
-ExecStart=
-ExecStart=/usr/bin/stunnel4 /etc/stunnel/stunnel.conf
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/stunnel4/stunnel.pid
-User=stunnel4
-Group=stunnel4
-RuntimeDirectory=stunnel4
-RuntimeDirectoryMode=0755
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Reload systemd daemon
+# Clean up old systemd overrides and reload daemon
+rm -rf /etc/systemd/system/stunnel4.service.d 2>/dev/null
 systemctl daemon-reload >/dev/null 2>&1
 
 echo "[*] Configuring stunnel service..."

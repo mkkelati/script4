@@ -377,18 +377,42 @@ configure_tunnel() {
             ln -sf /usr/local/bin/stunnel /usr/bin/stunnel4 2>/dev/null
             ln -sf /usr/local/bin/stunnel /usr/bin/stunnel 2>/dev/null
             
+            # Create proper systemd service for compiled stunnel
+            cat > /etc/systemd/system/stunnel4.service << 'EOF'
+[Unit]
+Description=Stunnel TLS tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/stunnel /etc/stunnel/stunnel.conf
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/stunnel4/stunnel.pid
+User=root
+Group=root
+RuntimeDirectory=stunnel4
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            
             # Clean up
             cd /
             rm -rf /tmp/stunnel-5.75*
             
-            echo -e "${GREEN}✓ Latest stunnel 5.75 installed${RESET}"
+            echo -e "${GREEN}✓ Latest stunnel 5.75 installed with systemd service${RESET}"
         fi
     fi
     
-    # Configure stunnel4 for Ubuntu 22.04/24.04 compatibility
-    echo -e "${YELLOW}Configuring stunnel4 for Ubuntu 22.04/24.04...${RESET}"
+    # Configure stunnel for Ubuntu 22.04/24.04 compatibility
+    echo -e "${YELLOW}Configuring stunnel for Ubuntu 22.04/24.04...${RESET}"
     
-    # Fix default configuration
+    # Clean up old systemd overrides if they exist
+    rm -rf /etc/systemd/system/stunnel4.service.d 2>/dev/null
+    
+    # Create default configuration if needed
     if [[ -f /etc/default/stunnel4 ]]; then
         sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null
         echo 'ENABLED=1' >> /etc/default/stunnel4 2>/dev/null
@@ -396,29 +420,7 @@ configure_tunnel() {
         echo 'ENABLED=1' > /etc/default/stunnel4
     fi
     
-    # Create systemd service override for newer Ubuntu versions
-    mkdir -p /etc/systemd/system/stunnel4.service.d
-    cat > /etc/systemd/system/stunnel4.service.d/override.conf << 'EOF'
-[Unit]
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=forking
-ExecStart=
-ExecStart=/usr/bin/stunnel4 /etc/stunnel/stunnel.conf
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/stunnel4/stunnel.pid
-User=stunnel4
-Group=stunnel4
-RuntimeDirectory=stunnel4
-RuntimeDirectoryMode=0755
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    # Reload systemd daemon
+    # Reload systemd daemon to pick up new service
     systemctl daemon-reload >/dev/null 2>&1
     
     # Generate certificate if needed with proper permissions
