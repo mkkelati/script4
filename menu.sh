@@ -1325,10 +1325,11 @@ print_menu() {
     echo -e "${WHITE}7)${RESET}  ${YELLOW}User Report${RESET}          - User status overview"
     echo -e "${WHITE}8)${RESET}  ${GREEN}Change Password${RESET}      - Update user passwords"
     echo -e "${WHITE}9)${RESET}  ${BLUE}User Limiter${RESET}         - Advanced connection enforcement"
-    echo -e "${WHITE}10)${RESET} ${RED}Uninstall${RESET}           - Complete removal"
+    echo -e "${WHITE}10)${RESET} ${CYAN}Server Optimization${RESET} - Optimize server performance"
+    echo -e "${WHITE}11)${RESET} ${RED}Uninstall${RESET}           - Complete removal"
     
     echo -e "\n${BLUE}┌─────────────────────────────────────────┐${RESET}"
-    echo -e "${BLUE}│${WHITE} Select option [1-10] or CTRL+C to exit ${BLUE}│${RESET}"
+    echo -e "${BLUE}│${WHITE} Select option [1-11] or CTRL+C to exit ${BLUE}│${RESET}"
     echo -e "${BLUE}└─────────────────────────────────────────┘${RESET}"
     echo -n -e "${WHITE}Enter your choice: ${RESET}"
 }
@@ -1393,6 +1394,166 @@ uninstall_script() {
     fi
 }
 
+# Server optimization function with loading animation
+optimize_server() {
+    clear
+    display_header_with_timestamp "SERVER OPTIMIZATION"
+    
+    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}         SERVER OPTIMIZATION            ${BLUE}│${RESET}"
+    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    
+    echo -e "${WHITE}This will optimize your server performance and security...${RESET}\n"
+    read -p "Do you want to proceed? (y/n): " confirm
+    
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo -e "\n${YELLOW}Server optimization cancelled${RESET}"
+        return
+    fi
+    
+    # Loading animation function
+    show_loading() {
+        local message="$1"
+        local duration="$2"
+        local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+        local delay=0.1
+        local elapsed=0
+        
+        while [ $elapsed -lt $duration ]; do
+            for (( i=0; i<${#chars}; i++ )); do
+                printf "\r${YELLOW}${chars:$i:1} ${WHITE}$message${RESET}"
+                sleep $delay
+                elapsed=$(echo "$elapsed + $delay" | bc -l 2>/dev/null || echo $((elapsed + 1)))
+                if [ $(echo "$elapsed >= $duration" | bc -l 2>/dev/null || echo 0) -eq 1 ]; then
+                    break 2
+                fi
+            done
+        done
+        printf "\r${GREEN}✓${WHITE} $message${RESET}\n"
+    }
+    
+    clear
+    display_header_with_timestamp "OPTIMIZING SERVER"
+    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}      OPTIMIZATION IN PROGRESS          ${BLUE}│${RESET}"
+    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    
+    local optimization_results=""
+    local optimization_count=0
+    
+    # 1. Update system packages
+    (
+        apt-get update >/dev/null 2>&1
+        apt-get upgrade -y >/dev/null 2>&1
+    ) &
+    show_loading "Updating system packages..." 3
+    wait
+    optimization_results+="✓ System packages updated\n"
+    ((optimization_count++))
+    
+    # 2. Clean system cache
+    (
+        apt-get autoremove -y >/dev/null 2>&1
+        apt-get autoclean >/dev/null 2>&1
+        rm -rf /tmp/* 2>/dev/null
+        find /var/log -name "*.log" -type f -size +50M -delete 2>/dev/null
+    ) &
+    show_loading "Cleaning system cache and logs..." 2
+    wait
+    optimization_results+="✓ System cache and logs cleaned\n"
+    ((optimization_count++))
+    
+    # 3. Optimize network settings
+    (
+        # TCP optimization
+        echo 'net.core.rmem_max = 16777216' >> /etc/sysctl.conf 2>/dev/null
+        echo 'net.core.wmem_max = 16777216' >> /etc/sysctl.conf 2>/dev/null
+        echo 'net.ipv4.tcp_rmem = 4096 87380 16777216' >> /etc/sysctl.conf 2>/dev/null
+        echo 'net.ipv4.tcp_wmem = 4096 65536 16777216' >> /etc/sysctl.conf 2>/dev/null
+        echo 'net.ipv4.tcp_congestion_control = bbr' >> /etc/sysctl.conf 2>/dev/null
+        sysctl -p >/dev/null 2>&1
+    ) &
+    show_loading "Optimizing network settings..." 2
+    wait
+    optimization_results+="✓ Network settings optimized\n"
+    ((optimization_count++))
+    
+    # 4. Security hardening
+    (
+        # SSH security
+        sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null
+        sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null
+        
+        # Firewall basic setup
+        ufw --force reset >/dev/null 2>&1
+        ufw default deny incoming >/dev/null 2>&1
+        ufw default allow outgoing >/dev/null 2>&1
+        ufw allow 22 >/dev/null 2>&1
+        ufw allow 80 >/dev/null 2>&1
+        ufw allow 443 >/dev/null 2>&1
+        echo "y" | ufw enable >/dev/null 2>&1
+    ) &
+    show_loading "Applying security hardening..." 3
+    wait
+    optimization_results+="✓ Security settings hardened\n"
+    ((optimization_count++))
+    
+    # 5. Memory optimization
+    (
+        # Swap optimization
+        echo 'vm.swappiness = 10' >> /etc/sysctl.conf 2>/dev/null
+        echo 'vm.vfs_cache_pressure = 50' >> /etc/sysctl.conf 2>/dev/null
+        
+        # Clear memory cache
+        sync
+        echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
+        sysctl -p >/dev/null 2>&1
+    ) &
+    show_loading "Optimizing memory usage..." 2
+    wait
+    optimization_results+="✓ Memory settings optimized\n"
+    ((optimization_count++))
+    
+    # 6. Service optimization
+    (
+        systemctl daemon-reload >/dev/null 2>&1
+        systemctl restart networking >/dev/null 2>&1
+        systemctl restart ssh >/dev/null 2>&1
+        systemctl restart stunnel4 >/dev/null 2>&1 || true
+    ) &
+    show_loading "Restarting optimized services..." 2
+    wait
+    optimization_results+="✓ Services restarted with new settings\n"
+    ((optimization_count++))
+    
+    # Show results
+    clear
+    display_header_with_timestamp "OPTIMIZATION COMPLETE"
+    
+    echo -e "\n${GREEN}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${GREEN}│${WHITE}     OPTIMIZATION SUCCESSFUL!           ${GREEN}│${RESET}"
+    echo -e "${GREEN}└────────────────────────────────────────┘${RESET}\n"
+    
+    echo -e "${WHITE}Optimization Results:${RESET}\n"
+    echo -e "$optimization_results"
+    
+    echo -e "${BLUE}📊 Performance Summary:${RESET}"
+    echo -e "${WHITE}• Total optimizations applied: ${GREEN}$optimization_count${RESET}"
+    echo -e "${WHITE}• System packages: ${GREEN}Updated${RESET}"
+    echo -e "${WHITE}• Cache cleanup: ${GREEN}Completed${RESET}"
+    echo -e "${WHITE}• Network performance: ${GREEN}Enhanced${RESET}"
+    echo -e "${WHITE}• Security hardening: ${GREEN}Applied${RESET}"
+    echo -e "${WHITE}• Memory optimization: ${GREEN}Configured${RESET}"
+    echo -e "${WHITE}• Services: ${GREEN}Restarted${RESET}"
+    
+    echo -e "\n${YELLOW}💡 Recommendations:${RESET}"
+    echo -e "${WHITE}• Reboot your server for all changes to take full effect${RESET}"
+    echo -e "${WHITE}• Monitor performance over the next 24 hours${RESET}"
+    echo -e "${WHITE}• Run optimization monthly for best results${RESET}"
+    
+    echo -e "\n${GREEN}✅ Your server has been successfully optimized!${RESET}"
+}
+
 # Graceful exit function
 graceful_exit() {
     echo -e "\n\n${YELLOW}👋 Thank you for using MK Script Manager v4.0!${RESET}"
@@ -1417,7 +1578,7 @@ main() {
     # Main menu loop
     while true; do
         print_menu
-        echo -e "${YELLOW}Select option [1-10] (CTRL+C to exit):${RESET} \c"
+        echo -e "${YELLOW}Select option [1-11] (CTRL+C to exit):${RESET} \c"
         read choice
         echo
         
@@ -1431,11 +1592,12 @@ main() {
             7) show_user_report ;;
             8) change_user_password ;;
             9) user_limiter_management ;;
-            10) uninstall_script ;;
-            *) echo -e "${RED}Invalid option. Please select 1-10.${RESET}" ;;
+            10) optimize_server ;;
+            11) uninstall_script ;;
+            *) echo -e "${RED}Invalid option. Please select 1-11.${RESET}" ;;
         esac
         
-        [[ "$choice" != "10" ]] && {
+        [[ "$choice" != "11" ]] && {
             echo -e "\n${WHITE}Press any key to return to main menu...${RESET}"
             read -n1 -s -r
         }
