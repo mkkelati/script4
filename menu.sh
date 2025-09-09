@@ -41,7 +41,7 @@ safe_number() {
     fi
 }
 
-# Display professional system dashboard (horizontal layout)
+# Display professional system dashboard (properly aligned)
 display_professional_dashboard() {
     clear
     
@@ -50,24 +50,28 @@ display_professional_dashboard() {
     local total_ram=$(free -h | awk '/^Mem:/ {print $2}')
     local used_ram=$(free -h | awk '/^Mem:/ {print $3}')
     local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | sed 's/%us,//' || echo "N/A")
-    local processor=$(grep "model name" /proc/cpuinfo | head -1 | cut -d':' -f2 | awk '{print $1, $2, $3}' || echo "Unknown")
+    local processor=$(grep "model name" /proc/cpuinfo | head -1 | cut -d':' -f2 | awk '{print $1, $2, $3}' | sed 's/^ *//' || echo "Unknown")
     local total_users=$(wc -l < "$USER_LIST_FILE" 2>/dev/null || echo "0")
     local active_connections=$(ss -tn | grep -c ESTAB 2>/dev/null || echo "0")
-    local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//')
+    local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//' | sed 's/^ *//')
+    local server_time=$(date '+%Y-%m-%d %H:%M:%S')
     
-    echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${BLUE}║${WHITE}                                            🚀 MK SCRIPT MANAGER v4.0 - Professional Dashboard                                            ${BLUE}║${RESET}"
-    echo -e "${BLUE}╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣${RESET}"
+    # Create dashboard with proper alignment
+    echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BLUE}║${WHITE}                           🚀 MK SCRIPT MANAGER v4.0 - Professional Dashboard                           ${BLUE}║${RESET}"
+    echo -e "${BLUE}╠══════════════════════════════════════════════════════════════════════════════════════════════════╣${RESET}"
     
-    # First row - System Information
-    printf "${BLUE}║${WHITE} 🖥️  ${YELLOW}OS:${GREEN} %-12s ${WHITE}💾 ${YELLOW}RAM:${GREEN} %-6s${WHITE}/${YELLOW}%-6s ${WHITE}⚡ ${YELLOW}CPU:${GREEN} %-6s ${WHITE}🔧 ${YELLOW}Processor:${GREEN} %-20s ${WHITE}📈 ${YELLOW}Load:${GREEN} %-6s ${BLUE}║${RESET}\n" \
-        "$os_info" "$used_ram" "$total_ram" "$cpu_usage%" "$(echo $processor | cut -c1-20)" "$load_avg"
+    # Use printf for proper alignment
+    printf "${BLUE}║${WHITE} 🖥️  ${YELLOW}OS: ${GREEN}%-15s ${WHITE}💾 ${YELLOW}RAM: ${GREEN}%-6s${WHITE}/${GREEN}%-6s ${WHITE}⚡ ${YELLOW}CPU: ${GREEN}%-6s ${WHITE}📈 ${YELLOW}Load: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
+        "$os_info" "$used_ram" "$total_ram" "$cpu_usage%" "$load_avg"
     
-    # Second row - Connection Statistics & Time
-    printf "${BLUE}║${WHITE} 🌐 ${YELLOW}Connections:${GREEN} %-8s ${WHITE}👥 ${YELLOW}Users:${GREEN} %-8s ${WHITE}📅 ${YELLOW}Server Time:${GREEN} %-35s ${WHITE}🔒 ${YELLOW}Status:${GREEN} %-12s ${BLUE}║${RESET}\n" \
-        "$active_connections" "$total_users" "$(date '+%Y-%m-%d %H:%M:%S %Z')" "Active"
+    printf "${BLUE}║${WHITE} 🔧 ${YELLOW}Processor: ${GREEN}%-25s ${WHITE}🌐 ${YELLOW}Connections: ${GREEN}%-3s ${WHITE}👥 ${YELLOW}Users: ${GREEN}%-8s ${BLUE}║${RESET}\n" \
+        "$(echo $processor | cut -c1-25)" "$active_connections" "$total_users"
     
-    echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝${RESET}"
+    printf "${BLUE}║${WHITE} 📅 ${YELLOW}Server Time: ${GREEN}%-20s ${WHITE}🔒 ${YELLOW}Status: ${GREEN}%-15s ${WHITE}                        ${BLUE}║${RESET}\n" \
+        "$server_time" "Active"
+    
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
 }
 
