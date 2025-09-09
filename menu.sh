@@ -41,6 +41,41 @@ safe_number() {
     fi
 }
 
+# Display professional system dashboard
+display_professional_dashboard() {
+    clear
+    
+    # Get system information
+    local os_info=$(lsb_release -d 2>/dev/null | cut -f2 || echo "$(uname -s) $(uname -r)")
+    local total_ram=$(free -h | awk '/^Mem:/ {print $2}')
+    local used_ram=$(free -h | awk '/^Mem:/ {print $3}')
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | sed 's/%us,//' || echo "N/A")
+    local processor=$(grep "model name" /proc/cpuinfo | head -1 | cut -d':' -f2 | xargs || echo "Unknown")
+    local total_users=$(wc -l < "$USER_LIST_FILE" 2>/dev/null || echo "0")
+    local active_connections=$(ss -tn | grep -c ESTAB 2>/dev/null || echo "0")
+    local load_avg=$(uptime | awk -F'load average:' '{print $2}' | xargs)
+    
+    echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BLUE}║${WHITE}                          MK SCRIPT MANAGER v4.0                              ${BLUE}║${RESET}"
+    echo -e "${BLUE}║${WHITE}                        Professional Dashboard                               ${BLUE}║${RESET}"
+    echo -e "${BLUE}╠══════════════════════════════════════════════════════════════════════════════╣${RESET}"
+    echo -e "${BLUE}║ ${YELLOW}📊 SYSTEM INFORMATION${RESET}                                                    ${BLUE}║${RESET}"
+    echo -e "${BLUE}║${RESET}                                                                              ${BLUE}║${RESET}"
+    printf "${BLUE}║${WHITE} 🖥️  OS Type        : ${GREEN}%-50s${BLUE} ║${RESET}\n" "$os_info"
+    printf "${BLUE}║${WHITE} 💾 RAM Memory      : ${GREEN}%-20s ${WHITE}(Used: ${YELLOW}%-20s${WHITE})${BLUE} ║${RESET}\n" "$total_ram" "$used_ram"
+    printf "${BLUE}║${WHITE} ⚡ CPU Usage       : ${GREEN}%-50s${BLUE} ║${RESET}\n" "$cpu_usage%"
+    printf "${BLUE}║${WHITE} 🔧 Processor       : ${GREEN}%-50s${BLUE} ║${RESET}\n" "$(echo $processor | cut -c1-50)"
+    printf "${BLUE}║${WHITE} 📈 Load Average    : ${GREEN}%-50s${BLUE} ║${RESET}\n" "$load_avg"
+    echo -e "${BLUE}║${RESET}                                                                              ${BLUE}║${RESET}"
+    echo -e "${BLUE}║ ${YELLOW}🔗 CONNECTION STATISTICS${RESET}                                                 ${BLUE}║${RESET}"
+    echo -e "${BLUE}║${RESET}                                                                              ${BLUE}║${RESET}"
+    printf "${BLUE}║${WHITE} 🌐 Active Connections : ${GREEN}%-45s${BLUE} ║${RESET}\n" "$active_connections"
+    printf "${BLUE}║${WHITE} 👥 Total Users Created: ${GREEN}%-45s${BLUE} ║${RESET}\n" "$total_users"
+    printf "${BLUE}║${WHITE} 📅 Server Time        : ${GREEN}%-45s${BLUE} ║${RESET}\n" "$(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════╝${RESET}"
+    echo ""
+}
+
 # Professional header with timestamp
 display_header_with_timestamp() {
     local title="$1"
@@ -149,12 +184,17 @@ create_user() {
     read -p "Connection limit (0 = unlimited): " limit
     [[ -z "$limit" || ! "$limit" =~ ^[0-9]+$ ]] && limit=0
     
-    read -p "Expiration date (YYYY-MM-DD, blank = never): " exp_date
-    [[ -z "$exp_date" ]] && exp_date="Never"
+    read -p "Expiration in days (blank = never, 0 = unlimited): " exp_days
+    [[ -z "$exp_days" ]] && exp_days="never"
     
-    # Validate date format if provided
-    if [[ "$exp_date" != "Never" ]] && ! date -d "$exp_date" >/dev/null 2>&1; then
-        echo -e "${RED}Invalid date format. Use YYYY-MM-DD${RESET}"
+    # Calculate expiration date from days
+    if [[ "$exp_days" == "never" || "$exp_days" == "0" ]]; then
+        exp_date="Never"
+    elif [[ "$exp_days" =~ ^[0-9]+$ ]]; then
+        exp_date=$(date -d "+${exp_days} days" +%Y-%m-%d)
+        echo -e "${GREEN}✓ Account will expire on: $exp_date${RESET}"
+    else
+        echo -e "${RED}Invalid input. Use number of days or leave blank for never${RESET}"
         return
     fi
     
@@ -1275,10 +1315,9 @@ setup_limiter_database() {
 
 # Print main menu
 print_menu() {
-    clear
-    display_header_with_timestamp "MAIN MENU"
+    display_professional_dashboard
     
-    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}┌────────────────────────────────────────┐${RESET}"
     echo -e "${BLUE}│${WHITE}           MAIN MENU OPTIONS            ${BLUE}│${RESET}"
     echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
     
@@ -1359,6 +1398,13 @@ uninstall_script() {
     fi
 }
 
+# Graceful exit function
+graceful_exit() {
+    echo -e "\n\n${YELLOW}👋 Thank you for using MK Script Manager v4.0!${RESET}"
+    echo -e "${WHITE}Exiting gracefully...${RESET}"
+    exit 0
+}
+
 # Main program loop
 main() {
     # Ensure running as root
@@ -1367,21 +1413,25 @@ main() {
         exit 1
     fi
     
+    # Set up CTRL+C handler for graceful exit
+    trap graceful_exit SIGINT
+    
     # Create required directories
     mkdir -p "$(dirname "$USER_LIST_FILE")" "$PASSWORD_DIR"
     
     # Main menu loop
-while true; do
-  print_menu
-  read choice
-  echo
+    while true; do
+        print_menu
+        echo -e "${YELLOW}Select option [1-10] (CTRL+C to exit):${RESET} \c"
+        read choice
+        echo
         
-  case "$choice" in
-    1) create_user ;;
-    2) delete_user ;;
-    3) limit_user ;;
-    4) configure_tunnel ;;
-    5) show_online_users ;;
+        case "$choice" in
+            1) create_user ;;
+            2) delete_user ;;
+            3) limit_user ;;
+            4) configure_tunnel ;;
+            5) show_online_users ;;
             6) show_network_traffic ;;
             7) show_user_report ;;
             8) change_user_password ;;
@@ -1397,8 +1447,7 @@ while true; do
     done
 }
 
-# Handle CTRL+C gracefully
-trap 'echo -e "\n${YELLOW}Returning to main menu...${RESET}"; sleep 1' INT
+# CTRL+C handling is now set up in main() function
 
 # Start the program
 main "$@"
