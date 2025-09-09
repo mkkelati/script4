@@ -140,7 +140,17 @@ display_professional_dashboard() {
     local _usop=$(top -bn1 2>/dev/null | awk '/Cpu/ { cpu = "" 100 - $8 "%" }; END { print cpu }' || echo "N/A")
     local _core=$(grep -c cpu[0-9] /proc/stat 2>/dev/null || echo "N/A")
     local _hora=$(date '+%H:%M:%S')
-    local _connections=$(ss -tn 2>/dev/null | grep -c ESTAB || echo "0")
+    # Count total SSH/VPN connections for all users
+    local _connections=0
+    if [[ -s "$USER_LIST_FILE" ]]; then
+        while IFS=: read -r username limit; do
+            [[ -z "$username" ]] && continue
+            local ssh_count=$(safe_number $(get_ssh_connections "$username"))
+            local dropbear_count=$(safe_number $(get_dropbear_connections "$username"))
+            local openvpn_count=$(safe_number $(get_openvpn_connections "$username"))
+            _connections=$((_connections + ssh_count + dropbear_count + openvpn_count))
+        done < "$USER_LIST_FILE"
+    fi
     
     # Format variables for consistent width
     local _system=$(printf '%-14s' "$system")
