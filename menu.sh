@@ -217,6 +217,19 @@ create_user() {
             echo "${username}    -    maxlogins    $limit" >> "$LIMIT_FILE"
         fi
         
+        # Add user to User Limiter database automatically
+        if [[ "$limit" -gt 0 ]]; then
+            # Ensure limiter database exists
+            mkdir -p "$(dirname "$LIMITER_DATABASE")"
+            touch "$LIMITER_DATABASE"
+            
+            # Check if user already exists in limiter database
+            if ! grep -q "^$username " "$LIMITER_DATABASE" 2>/dev/null; then
+                echo "$username $limit" >> "$LIMITER_DATABASE"
+                echo -e "${GREEN}✓ Added to User Limiter database (limit: $limit)${RESET}"
+            fi
+        fi
+        
         # Display account information
         clear
         display_header_with_timestamp "USER CREATED"
@@ -1032,28 +1045,153 @@ start_limiter() {
         return 1
     fi
     
+    # Create the limiter daemon script
+    create_limiter_daemon() {
+        cat > /tmp/limiter_daemon.sh << 'LIMITER_SCRIPT'
+#!/bin/bash
+
+# User Limiter Configuration
+LIMITER_DATABASE="/root/usuarios.db"
+OPENVPN_STATUS="/etc/openvpn/openvpn-status.log"
+OPENVPN_MANAGEMENT_PORT="7505"
+CHECK_INTERVAL=15
+
+# Function to get user limit from database
+get_user_limit_from_db() {
+    local username="$1"
+    [[ -z "$username" ]] && return 1
+    
+    # Default limit if not found
+    local default_limit=1
+    
+    if [[ -f "$LIMITER_DATABASE" ]]; then
+        local limit=$(grep "^$username " "$LIMITER_DATABASE" | awk '{print $2}' | head -1)
+        [[ -n "$limit" && "$limit" =~ ^[0-9]+$ ]] && echo "$limit" || echo "$default_limit"
+    else
+        echo "$default_limit"
+    fi
+}
+
+# Function to count SSH connections for limiter
+count_ssh_connections_limiter() {
+    local username="$1"
+    [[ -z "$username" ]] && { echo "0"; return; }
+    
+    local count=$(ps aux | grep "sshd.*$username" | grep -v grep | wc -l 2>/dev/null || echo "0")
+    echo "$count"
+}
+
+# Function to count OpenVPN connections for limiter
+count_openvpn_connections_limiter() {
+    local username="$1"
+    [[ -z "$username" ]] && { echo "0"; return; }
+    
+    if [[ -f "$OPENVPN_STATUS" ]]; then
+        local count=$(grep "^$username," "$OPENVPN_STATUS" | wc -l 2>/dev/null || echo "0")
+        echo "$count"
+    else
+        echo "0"
+    fi
+}
+
+# Function to kill excess OpenVPN connections
+kill_excess_openvpn() {
+    local username="$1"
+    local limit="$2"
+    local current_connections="$3"
+    
+    [[ -z "$username" || -z "$limit" || -z "$current_connections" ]] && return 1
+    
+    local excess=$((current_connections - limit))
+    [[ $excess -le 0 ]] && return 0
+    
+    if [[ -f "$OPENVPN_STATUS" ]]; then
+        grep "^$username," "$OPENVPN_STATUS" | tail -n "$excess" | while IFS=',' read -r user endpoint _ _; do
+            if [[ -n "$endpoint" ]]; then
+                echo "kill $endpoint" | nc localhost "$OPENVPN_MANAGEMENT_PORT" 2>/dev/null
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - Killed OpenVPN connection for $user from $endpoint"
+            fi
+        done
+    fi
+}
+
+# Main limiter enforcement function
+enforce_limits() {
+    local users_processed=0
+    local violations_found=0
+    
+    # Get all system users (UID >= 1000, excluding nobody)
+    while IFS= read -r user; do
+        [[ -z "$user" ]] && continue
+        
+        local limit=$(get_user_limit_from_db "$user")
+        local ssh_connections=$(count_ssh_connections_limiter "$user")
+        local openvpn_connections=$(count_openvpn_connections_limiter "$user")
+        local total_connections=$((ssh_connections + openvpn_connections))
+        
+        ((users_processed++))
+        
+        # Check SSH connections
+        if [[ $ssh_connections -gt $limit ]]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - User $user exceeded SSH limit ($ssh_connections/$limit) - Killing processes"
+            pkill -u "$user" 2>/dev/null
+            ((violations_found++))
+        fi
+        
+        # Check OpenVPN connections
+        if [[ $openvpn_connections -gt $limit ]]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - User $user exceeded OpenVPN limit ($openvpn_connections/$limit) - Killing excess connections"
+            kill_excess_openvpn "$user" "$limit" "$openvpn_connections"
+            ((violations_found++))
+        fi
+        
+    done <<< "$(awk -F: '$3 >= 1000 {print $1}' /etc/passwd | grep -v nobody)"
+    
+    # Log summary
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Checked $users_processed users, found $violations_found violations"
+}
+
+# Main daemon loop
+echo "User Connection Limiter Started - $(date)"
+echo "Database: $LIMITER_DATABASE"
+echo "Check Interval: ${CHECK_INTERVAL}s"
+echo "OpenVPN Status: $OPENVPN_STATUS"
+echo "================================"
+
+while true; do
+    enforce_limits
+    sleep $CHECK_INTERVAL
+done
+LIMITER_SCRIPT
+        
+        chmod +x /tmp/limiter_daemon.sh
+    }
+    
     # Start the limiter in screen session
     start_limiter_process() {
-        screen -dmS "$LIMITER_NAME" bash -c "
-            echo 'User Connection Limiter Started - $(date)'
-            echo 'Database: $LIMITER_DATABASE'
-            echo 'Check Interval: ${CHECK_INTERVAL}s'
-            echo 'OpenVPN Status: $OPENVPN_STATUS'
-            echo '================================'
-            
-            while true; do
-                $(declare -f enforce_limits get_user_limit_from_db count_ssh_connections_limiter count_openvpn_connections_limiter kill_excess_openvpn)
-                enforce_limits
-                sleep $CHECK_INTERVAL
-            done
-        "
+        # Create the daemon script
+        create_limiter_daemon
+        
+        # Start in screen session
+        screen -dmS "$LIMITER_NAME" /tmp/limiter_daemon.sh
+        
+        # Wait a moment for the screen to start
+        sleep 2
+        
+        # Verify it started
+        if screen -list | grep -q "$LIMITER_NAME"; then
+            echo "Limiter started successfully in screen session"
+        else
+            echo "Failed to start limiter in screen session"
+            return 1
+        fi
         
         # Add to autostart if file exists
         if [[ -f "$AUTOSTART_FILE" ]]; then
             # Remove any existing limiter entries
             sed -i '/user_limiter/d' "$AUTOSTART_FILE" 2>/dev/null
             # Add new entry
-            echo "ps x | grep '$LIMITER_NAME' | grep -v 'grep' && echo 'User Limiter: ON' || screen -dmS $LIMITER_NAME /usr/local/bin/menu limiter_daemon" >> "$AUTOSTART_FILE"
+            echo "screen -list | grep -q '$LIMITER_NAME' || screen -dmS $LIMITER_NAME /tmp/limiter_daemon.sh" >> "$AUTOSTART_FILE"
         fi
     }
     
@@ -1076,14 +1214,22 @@ stop_limiter() {
         # Kill screen session
         if screen -list | grep -q "$LIMITER_NAME"; then
             screen -S "$LIMITER_NAME" -X quit 2>/dev/null
+            echo "Screen session terminated"
         fi
         
         # Clean up screen sessions
         screen -wipe >/dev/null 2>&1
         
+        # Remove daemon script
+        if [[ -f "/tmp/limiter_daemon.sh" ]]; then
+            rm -f /tmp/limiter_daemon.sh
+            echo "Daemon script cleaned up"
+        fi
+        
         # Remove from autostart
         if [[ -f "$AUTOSTART_FILE" ]]; then
             sed -i '/user_limiter/d' "$AUTOSTART_FILE" 2>/dev/null
+            echo "Removed from autostart"
         fi
         
         sleep 1
@@ -1241,6 +1387,7 @@ setup_limiter_database() {
     echo -e "${RED}[${BLUE}2${RED}] ${WHITE}Remove User Limit${RESET}"
     echo -e "${RED}[${BLUE}3${RED}] ${WHITE}View Database${RESET}"
     echo -e "${RED}[${BLUE}4${RED}] ${WHITE}Import from Main Database${RESET}"
+    echo -e "${RED}[${BLUE}5${RED}] ${WHITE}Auto-Setup & Start Limiter${RESET}"
     echo -e "${RED}[${BLUE}0${RED}] ${WHITE}Back${RESET}"
     echo ""
     echo -ne "${GREEN}Choose option: ${WHITE}"
@@ -1304,6 +1451,53 @@ setup_limiter_database() {
                 echo -e "\n${RED}Main database not found${RESET}"
             fi
             sleep 2
+            ;;
+        5)
+            echo -e "\n${YELLOW}Auto-Setup & Start Limiter...${RESET}"
+            echo -e "${WHITE}This will:${RESET}"
+            echo -e "${WHITE}• Import all users from main database${RESET}"
+            echo -e "${WHITE}• Start the User Limiter automatically${RESET}"
+            echo ""
+            read -p "Continue? (y/n): " confirm
+            
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                # Import from main database
+                if [[ -s "$USER_LIST_FILE" ]]; then
+                    echo -e "\n${YELLOW}Importing users...${RESET}"
+                    local imported=0
+                    while IFS=: read -r username limit; do
+                        [[ -z "$username" || "$limit" == "0" ]] && continue
+                        # Remove existing entry and add new one
+                        sed -i "/^$username /d" "$LIMITER_DATABASE" 2>/dev/null
+                        echo "$username $limit" >> "$LIMITER_DATABASE"
+                        ((imported++))
+                    done < "$USER_LIST_FILE"
+                    echo -e "${GREEN}✓ Imported $imported users with limits${RESET}"
+                else
+                    echo -e "\n${RED}Main database not found${RESET}"
+                    sleep 2
+                    return
+                fi
+                
+                # Start the limiter
+                echo -e "\n${YELLOW}Starting User Limiter...${RESET}"
+                sleep 1
+                
+                if ! screen -list | grep -q "$LIMITER_NAME"; then
+                    start_limiter
+                    echo -e "\n${GREEN}✅ User Limiter is now active and monitoring all users!${RESET}"
+                else
+                    echo -e "\n${YELLOW}User Limiter is already running${RESET}"
+                fi
+                
+                echo -e "\n${BLUE}🎯 Setup Complete! The limiter will now:${RESET}"
+                echo -e "${WHITE}• Monitor all users every ${CHECK_INTERVAL} seconds${RESET}"
+                echo -e "${WHITE}• Enforce connection limits automatically${RESET}"
+                echo -e "${WHITE}• Kill excess connections when limits exceeded${RESET}"
+                echo -e "${WHITE}• Log all violations with timestamps${RESET}"
+                echo ""
+                read -p "Press Enter to continue..."
+            fi
             ;;
     esac
 }
