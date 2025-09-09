@@ -65,6 +65,56 @@ count_online_users() {
     echo "$online_count"
 }
 
+# Disconnect all active connections for a specific user
+disconnect_user_connections() {
+    local username="$1"
+    [[ -z "$username" ]] && return 1
+    
+    echo -e "${YELLOW}Disconnecting all active connections for user: $username${RESET}"
+    
+    local disconnected=0
+    
+    # Kill SSH connections
+    local ssh_pids=$(ps aux | grep "sshd.*$username" | grep -v grep | awk '{print $2}')
+    if [[ -n "$ssh_pids" ]]; then
+        echo "$ssh_pids" | while read -r pid; do
+            if [[ -n "$pid" ]]; then
+                kill -9 "$pid" 2>/dev/null && ((disconnected++))
+            fi
+        done
+        echo -e "${GREEN}✓ Killed SSH connections${RESET}"
+    fi
+    
+    # Kill Dropbear connections
+    if command -v dropbear >/dev/null 2>&1; then
+        local dropbear_pids=$(ps -u "$username" 2>/dev/null | grep dropbear | awk '{print $1}')
+        if [[ -n "$dropbear_pids" ]]; then
+            echo "$dropbear_pids" | while read -r pid; do
+                if [[ -n "$pid" ]]; then
+                    kill -9 "$pid" 2>/dev/null && ((disconnected++))
+                fi
+            done
+            echo -e "${GREEN}✓ Killed Dropbear connections${RESET}"
+        fi
+    fi
+    
+    # Kill OpenVPN connections
+    if [[ -f "/etc/openvpn/openvpn-status.log" ]]; then
+        grep "^$username," /etc/openvpn/openvpn-status.log 2>/dev/null | while IFS=',' read -r user endpoint _ _; do
+            if [[ -n "$endpoint" ]]; then
+                echo "kill $endpoint" | nc localhost "7505" 2>/dev/null
+                echo -e "${GREEN}✓ Killed OpenVPN connection from $endpoint${RESET}"
+                ((disconnected++))
+            fi
+        done
+    fi
+    
+    # Force kill any remaining user processes
+    pkill -u "$username" 2>/dev/null
+    
+    echo -e "${GREEN}✓ All connections for user '$username' have been terminated${RESET}"
+}
+
 # Display professional system dashboard (elegant design)
 display_professional_dashboard() {
     clear
@@ -212,11 +262,11 @@ create_user() {
         return; 
     fi
     
-    read -s -p "Enter password (blank = auto-generate): " password
+    read -s -p "Enter password (blank = default '1212'): " password
     echo
     [[ -z "$password" ]] && { 
-        password=$(generate_password); 
-        echo -e "${GREEN}Generated password: ${WHITE}$password${RESET}"; 
+        password="1212"; 
+        echo -e "${GREEN}Using default password: ${WHITE}$password${RESET}"; 
     }
     
     read -p "Connection limit (0 = unlimited): " limit
@@ -338,14 +388,21 @@ delete_user() {
     echo
     
     if [[ $confirm =~ ^[Yy]$ ]]; then
-        # Kill active sessions
-        pkill -u "$username" 2>/dev/null
+        # Disconnect all active connections first
+        disconnect_user_connections "$username"
+        sleep 2
         
         # Delete system user
   userdel -r "$username" 2>/dev/null
         
         # Remove from database
   sed -i "${num}d" "$USER_LIST_FILE"
+        
+        # Remove from User Limiter database
+        if [[ -f "$LIMITER_DATABASE" ]]; then
+            sed -i "/^$username /d" "$LIMITER_DATABASE"
+            echo -e "${GREEN}✓ Removed from User Limiter database${RESET}"
+        fi
         
         # Remove password files
         rm -f "$PASSWORD_DIR/$username" "$LEGACY_PASSWORD_DIR/$username" 2>/dev/null
@@ -361,7 +418,7 @@ delete_user() {
             sed -i "/^${username}[[:space:]]\+.*maxlogins/d" "$LIMIT_FILE"
         fi
         
-        echo -e "\n${GREEN}✓ User '$username' deleted successfully${RESET}"
+        echo -e "\n${GREEN}✓ User '$username' deleted successfully and all connections terminated${RESET}"
     else
         echo -e "\n${YELLOW}Operation cancelled${RESET}"
     fi
@@ -417,7 +474,31 @@ limit_user() {
         echo "${username}    -    maxlogins    $limit" >> "$LIMIT_FILE"
     fi
     
-    echo -e "\n${GREEN}✓ Connection limit for '$username' set to $limit${RESET}"
+    # Update User Limiter database
+    if [[ "$limit" -gt 0 ]]; then
+        # Ensure limiter database exists
+        mkdir -p "$(dirname "$LIMITER_DATABASE")"
+        touch "$LIMITER_DATABASE"
+        
+        # Update or add user to limiter database
+        if grep -q "^$username " "$LIMITER_DATABASE" 2>/dev/null; then
+            # Update existing entry
+            sed -i "s/^$username [0-9]\+/$username $limit/" "$LIMITER_DATABASE"
+            echo -e "${GREEN}✓ Updated User Limiter database (limit: $limit)${RESET}"
+        else
+            # Add new entry
+            echo "$username $limit" >> "$LIMITER_DATABASE"
+            echo -e "${GREEN}✓ Added to User Limiter database (limit: $limit)${RESET}"
+        fi
+    else
+        # Remove from limiter database if limit is 0 (unlimited)
+        if [[ -f "$LIMITER_DATABASE" ]]; then
+            sed -i "/^$username /d" "$LIMITER_DATABASE"
+            echo -e "${YELLOW}✓ Removed from User Limiter database (unlimited)${RESET}"
+        fi
+    fi
+    
+    echo -e "\n${GREEN}✓ Connection limit for '$username' set to $limit and synced with User Limiter${RESET}"
 }
 
 # Configure SSH-SSL tunnel
@@ -931,12 +1012,12 @@ change_user_password() {
     
     echo -e "${WHITE}Changing password for user: ${GREEN}$username${RESET}\n"
     
-    read -s -p "Enter new password (blank = auto-generate): " new_password
+    read -s -p "Enter new password (blank = default '1212'): " new_password
     echo
     
     [[ -z "$new_password" ]] && { 
-        new_password=$(generate_password); 
-        echo -e "${GREEN}Generated password: ${WHITE}$new_password${RESET}"; 
+        new_password="1212"; 
+        echo -e "${GREEN}Using default password: ${WHITE}$new_password${RESET}"; 
     }
     
     # Update system password
@@ -954,6 +1035,11 @@ change_user_password() {
         echo -e "\n${GREEN}✓ Password changed successfully${RESET}"
         echo -e "${WHITE}Username:${RESET} ${GREEN}$username${RESET}"
         echo -e "${WHITE}New Password:${RESET} ${GREEN}$new_password${RESET}"
+        
+        # Disconnect all active connections to force re-authentication
+        echo -e "\n${YELLOW}Disconnecting all active connections to force re-authentication...${RESET}"
+        disconnect_user_connections "$username"
+        echo -e "${GREEN}✓ All connections terminated - user must reconnect with new password${RESET}"
     else
         echo -e "\n${RED}✗ Failed to change password${RESET}"
     fi
