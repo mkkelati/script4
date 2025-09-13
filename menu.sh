@@ -691,12 +691,12 @@ debug = 7
 output = /var/log/stunnel4/stunnel.log
 
 # PERFORMANCE OPTIMIZATIONS - FULL POWER MODE
-renegotiation = no              # Prevent renegotiation overhead
-compression = zlib              # Enable compression for better throughput
-TIMEOUTbusy = 300              # Longer timeout for heavy traffic
-TIMEOUTconnect = 30            # Quick connection establishment  
-TIMEOUTclose = 10              # Fast connection cleanup
-TIMEOUTidle = 43200            # 12 hours idle timeout
+renegotiation = no
+compression = zlib
+TIMEOUTbusy = 300
+TIMEOUTconnect = 30
+TIMEOUTclose = 10
+TIMEOUTidle = 43200
 
 [ssh-tunnel]
 accept = ${port}
@@ -714,16 +714,16 @@ options = NO_TLSv1_1
 options = NO_TLSv1_2
 
 # Socket optimizations for maximum throughput
-socket = l:TCP_NODELAY=1       # Disable Nagle algorithm for lower latency
-socket = r:TCP_NODELAY=1       # Both directions
-socket = l:SO_KEEPALIVE=1      # Enable keepalive
-socket = r:SO_KEEPALIVE=1      # Both directions
-socket = l:SO_REUSEADDR=1      # Allow address reuse
-socket = r:SO_REUSEADDR=1      # Both directions
-socket = l:SO_RCVBUF=131072    # 128KB receive buffer
-socket = r:SO_RCVBUF=131072    # 128KB receive buffer  
-socket = l:SO_SNDBUF=131072    # 128KB send buffer
-socket = r:SO_SNDBUF=131072    # 128KB send buffer
+socket = l:TCP_NODELAY=1
+socket = r:TCP_NODELAY=1
+socket = l:SO_KEEPALIVE=1
+socket = r:SO_KEEPALIVE=1
+socket = l:SO_REUSEADDR=1
+socket = r:SO_REUSEADDR=1
+socket = l:SO_RCVBUF=131072
+socket = r:SO_RCVBUF=131072
+socket = l:SO_SNDBUF=131072
+socket = r:SO_SNDBUF=131072
 EOC
 
     echo -e "${GREEN}✓ Configuration created${RESET}"
