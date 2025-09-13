@@ -1761,21 +1761,31 @@ install_badvpn() {
 create_badvpn_systemd_service() {
     local port="${1:-$BADVPN_DEFAULT_PORT}"
     
+    # Ensure BadVPN binary exists
+    if [[ ! -f "$BADVPN_BINARY" ]]; then
+        echo -e "${RED}BadVPN binary not found at $BADVPN_BINARY${RESET}"
+        return 1
+    fi
+    
+    # Create systemd service with expanded variables
     cat > /etc/systemd/system/badvpn-udpgw.service << EOF
 [Unit]
 Description=BadVPN UDP Gateway
-After=network.target
-Wants=network.target
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User=root
 Group=root
-ExecStart=$BADVPN_BINARY --listen-addr 127.0.0.1:$port --max-clients $BADVPN_MAX_CLIENTS --max-connections-for-client $BADVPN_MAX_CONNECTIONS_PER_CLIENT --client-socket-sndbuf $BADVPN_SOCKET_BUFFER
+ExecStart=/bin/badvpn-udpgw --listen-addr 127.0.0.1:${port} --max-clients ${BADVPN_MAX_CLIENTS} --max-connections-for-client ${BADVPN_MAX_CONNECTIONS_PER_CLIENT} --client-socket-sndbuf ${BADVPN_SOCKET_BUFFER}
 Restart=always
-RestartSec=3
+RestartSec=5
+StartLimitBurst=3
 StandardOutput=journal
 StandardError=journal
+WorkingDirectory=/tmp
 
 [Install]
 WantedBy=multi-user.target
@@ -2149,8 +2159,50 @@ show_color_menu() {
     echo ""
 }
 
-# Function to create ASCII art banner with color
+# Function to create ASCII art banner with color (SSH-compatible)
 create_ascii_banner() {
+    local text="$1"
+    local style="$2"
+    local color_code="${3:-}" # Color code parameter
+    
+    # For SSH banners, we'll use simple text without ANSI codes
+    # The color will be handled by the terminal's interpretation
+    case "$style" in
+        "1"|"basic")
+            echo "============================================"
+            echo "          $text"
+            echo "============================================"
+            ;;
+        "2"|"stars")
+            echo "********************************************"
+            echo "***          $text          ***"
+            echo "********************************************"
+            ;;
+        "3"|"double")
+            echo "╔══════════════════════════════════════════╗"
+            echo "║          $text           ║"
+            echo "╚══════════════════════════════════════════╝"
+            ;;
+        "4"|"diamond")
+            echo "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇"
+            echo "◇          $text           ◇"
+            echo "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇"
+            ;;
+        "5"|"fire")
+            echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
+            echo "🔥          $text           🔥"
+            echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
+            ;;
+        *)
+            echo "============================================"
+            echo "          $text"
+            echo "============================================"
+            ;;
+    esac
+}
+
+# Function to create ASCII art banner with color for terminal display
+create_ascii_banner_colored() {
     local text="$1"
     local style="$2"
     local color_code="${3:-\033[1;37m}" # Default to white if no color specified
@@ -2190,8 +2242,31 @@ create_ascii_banner() {
     esac
 }
 
-# Function to create system info banner
+# Function to create system info banner (SSH-compatible)
 create_system_info_banner() {
+    local color_code="${1:-}" # Color parameter (not used in SSH banners)
+    local hostname=$(hostname)
+    local os_info=$(lsb_release -d 2>/dev/null | cut -f2 || echo "Linux Server")
+    local kernel=$(uname -r)
+    local uptime=$(uptime -p 2>/dev/null || uptime | awk '{print $3,$4}')
+    local load_avg=$(uptime | awk -F'load average:' '{print $2}')
+    local memory=$(free -h | grep Mem | awk '{print $3"/"$2}')
+    
+    cat << EOF
+╔══════════════════════════════════════════════════════════════╗
+║                    WELCOME TO $hostname                    ║
+╠══════════════════════════════════════════════════════════════╣
+║ OS Info    : $os_info
+║ Kernel     : $kernel  
+║ Uptime     : $uptime
+║ Load Avg   : $load_avg
+║ Memory     : $memory
+╚══════════════════════════════════════════════════════════════╝
+EOF
+}
+
+# Function to create system info banner with color for terminal display
+create_system_info_banner_colored() {
     local color_code="${1:-\033[1;37m}" # Default to white if no color specified
     local reset_code="\033[0m"
     local hostname=$(hostname)
@@ -2210,8 +2285,6 @@ ${color_code}║ Kernel     : $kernel${reset_code}
 ${color_code}║ Uptime     : $uptime${reset_code}
 ${color_code}║ Load Avg   : $load_avg${reset_code}
 ${color_code}║ Memory     : $memory${reset_code}
-${color_code}║ ${reset_code}
-${color_code}║ 🔐 Authorized Access Only - All Activities are Monitored    ║${reset_code}
 ${color_code}╚══════════════════════════════════════════════════════════════╝${reset_code}
 EOF
 }
@@ -2317,22 +2390,23 @@ create_custom_banner() {
     echo -e "\n${WHITE}Additional message (optional):${RESET}"
     read -p "Welcome message: " welcome_msg
     
-    # Create banner with color
-    cat > "$SSH_BANNER_FILE" << EOF
-$(create_ascii_banner "$banner_title" "$style_choice" "$selected_color")
-
-$(if [[ -n "$welcome_msg" ]]; then echo -e "${selected_color}$welcome_msg\033[0m"; fi)
-
-🔐 Authorized Access Only
-📊 Server: $(hostname)
-🕐 Login Time: \$(date)
-⚠️  All activities are logged and monitored
-
-EOF
+    # Create banner without color codes for SSH compatibility
+    {
+        create_ascii_banner "$banner_title" "$style_choice"
+        echo ""
+        if [[ -n "$welcome_msg" ]]; then
+            echo "$welcome_msg"
+            echo ""
+        fi
+    } > "$SSH_BANNER_FILE"
     
     echo -e "\n${GREEN}✓ Custom banner created successfully!${RESET}"
-    echo -e "${YELLOW}Preview:${RESET}"
-    echo -e "${CYAN}$(cat "$SSH_BANNER_FILE")${RESET}"
+    echo -e "${YELLOW}Preview (with colors for demonstration):${RESET}"
+    # Show colored preview in terminal
+    create_ascii_banner_colored "$banner_title" "$style_choice" "$selected_color"
+    if [[ -n "$welcome_msg" ]]; then
+        echo -e "${selected_color}$welcome_msg\033[0m"
+    fi
     
     echo ""
     read -p "Apply this banner to SSH? (y/n): " apply_choice
@@ -2356,13 +2430,15 @@ create_system_banner() {
     # Get the color code
     local selected_color=$(get_banner_color_code "$color_choice")
     
-    echo -e "\n${GREEN}Creating system information banner with color...${RESET}"
+    echo -e "\n${GREEN}Creating system information banner...${RESET}"
     
-    create_system_info_banner "$selected_color" > "$SSH_BANNER_FILE"
+    # Create plain banner for SSH compatibility
+    create_system_info_banner > "$SSH_BANNER_FILE"
     
-    echo -e "\n${GREEN}✓ System info banner created with color!${RESET}"
-    echo -e "${YELLOW}Preview:${RESET}"
-    echo -e "$(cat "$SSH_BANNER_FILE")"
+    echo -e "\n${GREEN}✓ System info banner created successfully!${RESET}"
+    echo -e "${YELLOW}Preview (with colors for demonstration):${RESET}"
+    # Show colored preview in terminal
+    create_system_info_banner_colored "$selected_color"
     
     echo ""
     read -p "Apply this banner to SSH? (y/n): " apply_choice
