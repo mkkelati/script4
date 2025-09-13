@@ -22,8 +22,8 @@ apt-get install -y openssl screen wget curl net-tools iproute2 systemd >/dev/nul
 # Install latest stunnel with proper configuration for newer Ubuntu versions
 echo "[*] Installing and configuring latest stunnel..."
 
-# Install build dependencies first
-apt-get install -y build-essential libssl-dev zlib1g-dev wget tar >/dev/null 2>&1
+# Install build dependencies first (includes BadVPN dependencies)
+apt-get install -y build-essential libssl-dev zlib1g-dev wget tar cmake >/dev/null 2>&1
 
 # Try to install latest stunnel from source
 cd /tmp

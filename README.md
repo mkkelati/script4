@@ -55,7 +55,9 @@ menu
 7)  User Report          - User status overview
 8)  Change Password      - Update user passwords
 9)  User Limiter         - Advanced connection enforcement
-10) Uninstall           - Complete removal
+10) Server Optimization  - System performance tuning
+11) Uninstall           - Complete removal
+12) BadVPN Manager      - UDP Gateway for VoIP/OpenVPN
 ```
 
 ## 🔐 Key Features
@@ -64,8 +66,27 @@ menu
 - **Connection limiting** via PAM
 - **Real-time monitoring** with auto-refresh every 3 seconds
 - **Advanced User Limiter** with automatic enforcement and violation logging
+- **BadVPN UDP Gateway** for improved VoIP quality and UDP forwarding
 - **Professional UI** with boxed interfaces and status icons
 - **Safe arithmetic operations** with error handling
+
+## ⚡ BadVPN UDP Gateway Manager
+The integrated BadVPN Manager provides UDP forwarding capabilities for improved connectivity:
+
+### Features:
+- **VoIP Quality Enhancement** - Reduces packet loss for voice calls
+- **UDP Traffic Forwarding** - Essential for OpenVPN and other UDP applications
+- **Port Management** - Easy port configuration with conflict detection
+- **Performance Monitoring** - Real-time connection stats and resource usage
+- **Auto-Installation** - Compiles latest BadVPN from source automatically
+- **Screen Session Management** - Background process with log access
+- **Autostart Integration** - Persistent across reboots
+
+### Configuration:
+- **Default Port**: 7300 (configurable)
+- **Max Clients**: 10,000
+- **Max Connections per Client**: 8
+- **Socket Buffer**: 10,000 bytes
 
 ## 🛡️ Advanced User Limiter
 The integrated User Limiter provides comprehensive connection monitoring and enforcement:

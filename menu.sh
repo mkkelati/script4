@@ -1644,6 +1644,348 @@ setup_limiter_database() {
     esac
 }
 
+# ============================================================================
+# BADVPN UDP GATEWAY FUNCTIONS
+# ============================================================================
+
+# BadVPN Configuration
+BADVPN_DEFAULT_PORT="7300"
+BADVPN_BINARY="/bin/badvpn-udpgw"
+BADVPN_SCREEN_SESSION="udpvpn"
+BADVPN_MAX_CLIENTS="10000"
+BADVPN_MAX_CONNECTIONS_PER_CLIENT="8"
+BADVPN_SOCKET_BUFFER="10000"
+
+# Function to check if BadVPN is running
+is_badvpn_running() {
+    ps x | grep -w "$BADVPN_SCREEN_SESSION" | grep -v grep >/dev/null 2>&1
+}
+
+# Function to get BadVPN port
+get_badvpn_port() {
+    if is_badvpn_running; then
+        netstat -nplt 2>/dev/null | grep 'badvpn-ud' | awk '{print $4}' | cut -d: -f2 | head -1
+    else
+        echo ""
+    fi
+}
+
+# Function to install BadVPN binary
+install_badvpn() {
+    if [[ ! -e "$BADVPN_BINARY" ]]; then
+        echo -e "${YELLOW}◇ Installing BadVPN UDP Gateway...${RESET}"
+        cd "$HOME" || return 1
+        
+        # Install build dependencies
+        apt-get update -y >/dev/null 2>&1
+        apt-get install -y build-essential cmake wget tar >/dev/null 2>&1
+        
+        # Download and compile BadVPN
+        if wget -q --timeout=10 "https://github.com/ambrop72/badvpn/archive/master.tar.gz" -O badvpn.tar.gz; then
+            echo -e "${GREEN}◇ Download successful, compiling...${RESET}"
+            tar -xf badvpn.tar.gz
+            cd badvpn-* || return 1
+            mkdir build && cd build
+            cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1
+            make
+            cp udpgw/badvpn-udpgw "$BADVPN_BINARY"
+            chmod +x "$BADVPN_BINARY"
+            cd "$HOME" && rm -rf badvpn*
+            echo -e "${GREEN}◇ BadVPN installed successfully${RESET}"
+        else
+            echo -e "${RED}◇ Failed to download BadVPN${RESET}"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Function to start BadVPN
+start_badvpn() {
+    local port="${1:-$BADVPN_DEFAULT_PORT}"
+    
+    clear
+    display_header_with_timestamp "BADVPN START"
+    
+    if is_badvpn_running; then
+        echo -e "\n${YELLOW}◇ BadVPN is already running!${RESET}"
+        sleep 3
+        return 1
+    fi
+    
+    echo -e "\n${GREEN}◇ STARTING BADVPN UDP GATEWAY...${RESET}"
+    echo ""
+    
+    # Install if not present
+    if ! install_badvpn; then
+        sleep 3
+        return 1
+    fi
+    
+    # Start BadVPN in screen session
+    start_badvpn_process() {
+        screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
+            --listen-addr "127.0.0.1:$port" \
+            --max-clients "$BADVPN_MAX_CLIENTS" \
+            --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
+            --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
+        
+        # Add to autostart if file exists
+        if [[ -f "$AUTOSTART_FILE" ]]; then
+            sed -i '/udpvpn/d' "$AUTOSTART_FILE" 2>/dev/null
+            echo "ps x | grep 'udpvpn' | grep -v 'grep' || screen -dmS udpvpn $BADVPN_BINARY --listen-addr 127.0.0.1:$port --max-clients $BADVPN_MAX_CLIENTS --max-connections-for-client $BADVPN_MAX_CONNECTIONS_PER_CLIENT --client-socket-sndbuf $BADVPN_SOCKET_BUFFER" >> "$AUTOSTART_FILE"
+        fi
+        
+        sleep 2
+    }
+    
+    fun_bar 'start_badvpn_process' 'sleep 2'
+    
+    if is_badvpn_running; then
+        echo -e "\n${GREEN}◇ BADVPN SUCCESSFULLY ACTIVATED ON PORT $port!${RESET}"
+        echo -e "${WHITE}◇ Session: $BADVPN_SCREEN_SESSION${RESET}"
+        echo -e "${WHITE}◇ Max Clients: $BADVPN_MAX_CLIENTS${RESET}"
+    else
+        echo -e "\n${RED}◇ FAILED TO START BADVPN!${RESET}"
+    fi
+    
+    sleep 3
+}
+
+# Function to stop BadVPN
+stop_badvpn() {
+    clear
+    display_header_with_timestamp "BADVPN STOP"
+    
+    echo -e "\n${GREEN}◇ STOPPING BADVPN UDP GATEWAY...${RESET}"
+    echo ""
+    
+    stop_badvpn_process() {
+        # Kill screen sessions
+        for pid in $(screen -ls | grep ".$BADVPN_SCREEN_SESSION" | awk '{print $1}'); do
+            screen -r -S "$pid" -X quit 2>/dev/null
+        done
+        
+        # Remove from autostart
+        if [[ -f "$AUTOSTART_FILE" ]]; then
+            sed -i '/udpvpn/d' "$AUTOSTART_FILE" 2>/dev/null
+        fi
+        
+        # Clean up screen sessions
+        screen -wipe >/dev/null 2>&1
+        sleep 1
+    }
+    
+    fun_bar 'stop_badvpn_process' 'sleep 2'
+    
+    if ! is_badvpn_running; then
+        echo -e "\n${GREEN}◇ BADVPN SUCCESSFULLY STOPPED!${RESET}"
+    else
+        echo -e "\n${RED}◇ FAILED TO STOP BADVPN!${RESET}"
+    fi
+    
+    sleep 3
+}
+
+# Function to show BadVPN status
+show_badvpn_status() {
+    clear
+    display_header_with_timestamp "BADVPN STATUS"
+    
+    echo -e "\n${BLUE}◇ BADVPN UDP GATEWAY STATUS${RESET}"
+    echo -e "${BLUE}============================${RESET}\n"
+    
+    if is_badvpn_running; then
+        local port=$(get_badvpn_port)
+        echo -e "${GREEN}Status: ${WHITE}RUNNING ♦${RESET}"
+        echo -e "${GREEN}Port: ${WHITE}${port:-$BADVPN_DEFAULT_PORT}${RESET}"
+        echo -e "${GREEN}Session: ${WHITE}$BADVPN_SCREEN_SESSION${RESET}"
+        echo -e "${GREEN}Max Clients: ${WHITE}$BADVPN_MAX_CLIENTS${RESET}"
+        echo -e "${GREEN}Max Connections/Client: ${WHITE}$BADVPN_MAX_CONNECTIONS_PER_CLIENT${RESET}"
+        
+        # Show process info
+        local pid=$(ps aux | grep "$BADVPN_SCREEN_SESSION" | grep -v grep | awk '{print $2}' | head -1)
+        if [[ -n "$pid" ]]; then
+            local memory=$(ps -p "$pid" -o rss= 2>/dev/null | awk '{print int($1/1024)"MB"}')
+            local cpu=$(ps -p "$pid" -o %cpu= 2>/dev/null | awk '{print $1"%"}')
+            echo -e "${GREEN}PID: ${WHITE}$pid${RESET}"
+            echo -e "${GREEN}Memory Usage: ${WHITE}${memory:-N/A}${RESET}"
+            echo -e "${GREEN}CPU Usage: ${WHITE}${cpu:-N/A}${RESET}"
+        fi
+        
+        # Show connections
+        local connections=$(netstat -n | grep ":${port:-$BADVPN_DEFAULT_PORT}" | wc -l 2>/dev/null || echo "0")
+        echo -e "${GREEN}Active Connections: ${WHITE}$connections${RESET}"
+        
+    else
+        echo -e "${RED}Status: ${WHITE}STOPPED ○${RESET}"
+        echo ""
+        echo -e "${YELLOW}BadVPN is not running${RESET}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}What is BadVPN UDP Gateway?${RESET}"
+    echo -e "${WHITE}• Forwards UDP traffic for OpenVPN${RESET}"
+    echo -e "${WHITE}• Improves VoIP call quality${RESET}"
+    echo -e "${WHITE}• Reduces packet loss for UDP connections${RESET}"
+    echo -e "${WHITE}• Essential for UDP-based applications${RESET}"
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to change BadVPN port
+change_badvpn_port() {
+    clear
+    display_header_with_timestamp "BADVPN PORT"
+    
+    if ! is_badvpn_running; then
+        echo -e "\n${RED}◇ BADVPN IS NOT RUNNING!${RESET}"
+        echo -e "${YELLOW}◇ Please start BadVPN first.${RESET}"
+        sleep 3
+        return 1
+    fi
+    
+    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}          CHANGE BADVPN PORT            ${BLUE}│${RESET}"
+    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    
+    local current_port=$(get_badvpn_port)
+    echo -e "${WHITE}Current Port: ${GREEN}${current_port:-$BADVPN_DEFAULT_PORT}${RESET}\n"
+    
+    read -p "Enter new port (1024-65535): " new_port
+    
+    if [[ -z "$new_port" ]]; then
+        echo -e "\n${RED}◇ Invalid port!${RESET}"
+        sleep 2
+        return 1
+    fi
+    
+    # Validate port number
+    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [[ "$new_port" -lt 1024 ]] || [[ "$new_port" -gt 65535 ]]; then
+        echo -e "\n${RED}◇ Invalid port! Please use a port between 1024-65535.${RESET}"
+        sleep 3
+        return 1
+    fi
+    
+    # Check if port is already in use
+    if netstat -ln | grep ":$new_port " >/dev/null 2>&1; then
+        echo -e "\n${RED}◇ Port $new_port is already in use!${RESET}"
+        sleep 3
+        return 1
+    fi
+    
+    echo -e "\n${GREEN}◇ CHANGING BADVPN PORT TO $new_port...${RESET}"
+    
+    # Stop current instance
+    stop_badvpn_process() {
+        for pid in $(screen -ls | grep ".$BADVPN_SCREEN_SESSION" | awk '{print $1}'); do
+            screen -r -S "$pid" -X quit 2>/dev/null
+        done
+        sleep 1
+    }
+    
+    fun_bar 'stop_badvpn_process' 'sleep 1'
+    
+    # Start with new port
+    start_badvpn_process() {
+        screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
+            --listen-addr "127.0.0.1:$new_port" \
+            --max-clients "$BADVPN_MAX_CLIENTS" \
+            --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
+            --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
+        
+        if [[ -f "$AUTOSTART_FILE" ]]; then
+            sed -i '/udpvpn/d' "$AUTOSTART_FILE" 2>/dev/null
+            echo "ps x | grep 'udpvpn' | grep -v 'grep' || screen -dmS udpvpn $BADVPN_BINARY --listen-addr 127.0.0.1:$new_port --max-clients $BADVPN_MAX_CLIENTS --max-connections-for-client $BADVPN_MAX_CONNECTIONS_PER_CLIENT --client-socket-sndbuf $BADVPN_SOCKET_BUFFER" >> "$AUTOSTART_FILE"
+        fi
+        sleep 2
+    }
+    
+    fun_bar 'start_badvpn_process' 'sleep 2'
+    
+    if is_badvpn_running; then
+        echo -e "\n${GREEN}◇ BADVPN SUCCESSFULLY ACTIVATED ON PORT $new_port!${RESET}"
+    else
+        echo -e "\n${RED}◇ FAILED TO START BADVPN ON PORT $new_port!${RESET}"
+        echo -e "${YELLOW}◇ Trying to restart on default port...${RESET}"
+        start_badvpn "$BADVPN_DEFAULT_PORT" >/dev/null 2>&1
+    fi
+    
+    sleep 3
+}
+
+# Main BadVPN management function
+manage_badvpn() {
+    while true; do
+        clear
+        display_header_with_timestamp "BADVPN MANAGER"
+        
+        echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+        echo -e "${BLUE}│${WHITE}        ⚡ BADVPN UDP GATEWAY ⚡         ${BLUE}│${RESET}"
+        echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+        
+        # Show current status
+        if is_badvpn_running; then
+            local port=$(get_badvpn_port)
+            echo -e "${WHITE}Current Status: ${GREEN}RUNNING ♦${RESET}"
+            echo -e "${WHITE}Port: ${GREEN}${port:-$BADVPN_DEFAULT_PORT}${RESET}"
+            local action_text="STOP BADVPN"
+            local action_color="${RED}"
+        else
+            echo -e "${WHITE}Current Status: ${RED}STOPPED ○${RESET}"
+            local action_text="START BADVPN"
+            local action_color="${GREEN}"
+        fi
+        
+        echo ""
+        echo -e "${RED}[${BLUE}1${RED}] ${WHITE}• ${action_color}$action_text${RESET}"
+        echo -e "${RED}[${BLUE}2${RED}] ${WHITE}• ${YELLOW}CHANGE PORT${RESET}"
+        echo -e "${RED}[${BLUE}3${RED}] ${WHITE}• ${YELLOW}VIEW STATUS & INFO${RESET}"
+        echo -e "${RED}[${BLUE}4${RED}] ${WHITE}• ${YELLOW}VIEW LOGS${RESET}"
+        echo -e "${RED}[${BLUE}0${RED}] ${WHITE}• ${YELLOW}BACK TO MAIN MENU${RESET}"
+        echo ""
+        echo -ne "${GREEN}What do you want to do${YELLOW}? ${WHITE}"
+        read choice
+        
+        case "$choice" in
+            1)
+                if is_badvpn_running; then
+                    stop_badvpn
+                else
+                    start_badvpn
+                fi
+                ;;
+            2)
+                change_badvpn_port
+                ;;
+            3)
+                show_badvpn_status
+                ;;
+            4)
+                if is_badvpn_running; then
+                    echo ""
+                    echo -e "${GREEN}◇ Connecting to BadVPN logs...${RESET}"
+                    echo -e "${YELLOW}◇ Press Ctrl+A then D to detach${RESET}"
+                    sleep 2
+                    screen -r "$BADVPN_SCREEN_SESSION"
+                else
+                    echo ""
+                    echo -e "${RED}◇ BadVPN is not running!${RESET}"
+                    sleep 2
+                fi
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "\n${RED}Invalid option!${RESET}"
+                sleep 2
+                ;;
+        esac
+    done
+}
+
 # Print main menu (elegant design)
 print_menu() {
     display_professional_dashboard
@@ -1654,7 +1996,8 @@ print_menu() {
     echo -e "${RED}[${BLUE}03${RED}] ${WHITE}◇ ${YELLOW}Limit User${RESET}           ${RED}[${BLUE}09${RED}] ${WHITE}◇ ${BLUE}User Limiter${RESET}"
     echo -e "${RED}[${BLUE}04${RED}] ${WHITE}◇ ${BLUE}Connection Mode${RESET}      ${RED}[${BLUE}10${RED}] ${WHITE}◇ ${CYAN}Server Optimization${RESET}"
     echo -e "${RED}[${BLUE}05${RED}] ${WHITE}◇ ${GREEN}Online Users${RESET}         ${RED}[${BLUE}11${RED}] ${WHITE}◇ ${RED}Uninstall${RESET}"
-    echo -e "${RED}[${BLUE}06${RED}] ${WHITE}◇ ${BLUE}Network Traffic${RESET}      ${RED}[${BLUE}00${RED}] ${WHITE}◇ ${YELLOW}EXIT ${GREEN}<${YELLOW}<${RED}< ${RESET}"
+    echo -e "${RED}[${BLUE}06${RED}] ${WHITE}◇ ${BLUE}Network Traffic${RESET}      ${RED}[${BLUE}12${RED}] ${WHITE}◇ ${MAGENTA}BadVPN Manager${RESET}"
+    echo -e "                                        ${RED}[${BLUE}00${RED}] ${WHITE}◇ ${YELLOW}EXIT ${GREEN}<${YELLOW}<${RED}< ${RESET}"
     
     echo ""
     echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
@@ -1921,9 +2264,10 @@ main() {
             9|09) user_limiter_management ;;
             10) optimize_server ;;
             11) uninstall_script ;;
+            12) manage_badvpn ;;
             0|00) 
                 echo -e "\n${YELLOW}◇ Exiting MK Script Manager...${RESET}"
-                echo -e "${GREEN}Thank you for using MK Script Manager v4.0!${RESET}"
+                echo -e "${GREEN}Thank you for using MK Script Manager v4.1!${RESET}"
                 sleep 2
                 clear
                 exit 0
