@@ -2043,18 +2043,329 @@ manage_badvpn() {
     done
 }
 
+# ============================================================================
+# BANNER MESSAGE CREATOR FUNCTIONS
+# ============================================================================
+
+# Banner configuration paths
+MOTD_FILE="/etc/motd"
+ISSUE_FILE="/etc/issue.net"
+SSH_BANNER_FILE="/etc/ssh/ssh_banner"
+
+# Function to create ASCII art banner
+create_ascii_banner() {
+    local text="$1"
+    local style="$2"
+    
+    case "$style" in
+        "1"|"basic")
+            echo "============================================"
+            echo "          $text"
+            echo "============================================"
+            ;;
+        "2"|"stars")
+            echo "********************************************"
+            echo "***          $text          ***"
+            echo "********************************************"
+            ;;
+        "3"|"double")
+            echo "╔══════════════════════════════════════════╗"
+            echo "║          $text           ║"
+            echo "╚══════════════════════════════════════════╝"
+            ;;
+        "4"|"diamond")
+            echo "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇"
+            echo "◇          $text           ◇"
+            echo "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇"
+            ;;
+        "5"|"fire")
+            echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
+            echo "🔥          $text           🔥"
+            echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
+            ;;
+        *)
+            echo "============================================"
+            echo "          $text"
+            echo "============================================"
+            ;;
+    esac
+}
+
+# Function to create system info banner
+create_system_info_banner() {
+    local hostname=$(hostname)
+    local os_info=$(lsb_release -d 2>/dev/null | cut -f2 || echo "Linux Server")
+    local kernel=$(uname -r)
+    local uptime=$(uptime -p 2>/dev/null || uptime | awk '{print $3,$4}')
+    local load_avg=$(uptime | awk -F'load average:' '{print $2}')
+    local memory=$(free -h | grep Mem | awk '{print $3"/"$2}')
+    
+    cat << EOF
+╔══════════════════════════════════════════════════════════════╗
+║                    WELCOME TO $hostname                    ║
+╠══════════════════════════════════════════════════════════════╣
+║ OS Info    : $os_info
+║ Kernel     : $kernel  
+║ Uptime     : $uptime
+║ Load Avg   : $load_avg
+║ Memory     : $memory
+║ 
+║ 🔐 Authorized Access Only - All Activities are Monitored    ║
+╚══════════════════════════════════════════════════════════════╝
+EOF
+}
+
+# Function to manage SSH banner
+manage_ssh_banner() {
+    while true; do
+        clear
+        display_header_with_timestamp "SSH BANNER MANAGER"
+        
+        echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+        echo -e "${BLUE}│${WHITE}         SSH BANNER CREATOR            ${BLUE}│${RESET}"
+        echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+        
+        # Show current banner status
+        if [[ -f "$SSH_BANNER_FILE" ]]; then
+            echo -e "${WHITE}Current SSH Banner: ${GREEN}ACTIVE${RESET}"
+            echo -e "${YELLOW}Preview:${RESET}"
+            echo -e "${CYAN}$(head -5 "$SSH_BANNER_FILE")${RESET}"
+            if [[ $(wc -l < "$SSH_BANNER_FILE") -gt 5 ]]; then
+                echo -e "${GRAY}... (truncated)${RESET}"
+            fi
+        else
+            echo -e "${WHITE}Current SSH Banner: ${RED}NOT SET${RESET}"
+        fi
+        
+        echo ""
+        echo -e "${RED}[${BLUE}1${RED}] ${WHITE}• ${GREEN}Create Custom Text Banner${RESET}"
+        echo -e "${RED}[${BLUE}2${RED}] ${WHITE}• ${GREEN}Create System Info Banner${RESET}"
+        echo -e "${RED}[${BLUE}3${RED}] ${WHITE}• ${YELLOW}Edit Banner Manually${RESET}"
+        echo -e "${RED}[${BLUE}4${RED}] ${WHITE}• ${CYAN}Preview Current Banner${RESET}"
+        echo -e "${RED}[${BLUE}5${RED}] ${WHITE}• ${BLUE}Apply Banner to SSH${RESET}"
+        echo -e "${RED}[${BLUE}6${RED}] ${WHITE}• ${RED}Remove SSH Banner${RESET}"
+        echo -e "${RED}[${BLUE}0${RED}] ${WHITE}• ${YELLOW}BACK TO MAIN MENU${RESET}"
+        echo ""
+        echo -ne "${GREEN}What do you want to do${YELLOW}? ${WHITE}"
+        read choice
+        
+        case "$choice" in
+            1)
+                create_custom_banner
+                ;;
+            2)
+                create_system_banner
+                ;;
+            3)
+                edit_banner_manually
+                ;;
+            4)
+                preview_banner
+                ;;
+            5)
+                apply_ssh_banner
+                ;;
+            6)
+                remove_ssh_banner
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "\n${RED}Invalid option!${RESET}"
+                sleep 2
+                ;;
+        esac
+    done
+}
+
+# Function to create custom text banner
+create_custom_banner() {
+    clear
+    display_header_with_timestamp "CUSTOM BANNER CREATOR"
+    
+    echo -e "\n${BLUE}┌────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}         CREATE CUSTOM BANNER           ${BLUE}│${RESET}"
+    echo -e "${BLUE}└────────────────────────────────────────┘${RESET}\n"
+    
+    echo -e "${WHITE}Enter your banner text:${RESET}"
+    read -p "Banner Title: " banner_title
+    
+    if [[ -z "$banner_title" ]]; then
+        echo -e "\n${RED}Banner title cannot be empty!${RESET}"
+        sleep 2
+        return
+    fi
+    
+    echo -e "\n${WHITE}Choose banner style:${RESET}"
+    echo -e "${CYAN}1) Basic Lines${RESET}"
+    echo -e "${CYAN}2) Stars${RESET}"
+    echo -e "${CYAN}3) Double Lines${RESET}"
+    echo -e "${CYAN}4) Diamonds${RESET}"
+    echo -e "${CYAN}5) Fire Emojis${RESET}"
+    echo ""
+    read -p "Select style [1-5]: " style_choice
+    
+    echo -e "\n${WHITE}Additional message (optional):${RESET}"
+    read -p "Welcome message: " welcome_msg
+    
+    # Create banner
+    cat > "$SSH_BANNER_FILE" << EOF
+$(create_ascii_banner "$banner_title" "$style_choice")
+
+$(if [[ -n "$welcome_msg" ]]; then echo "$welcome_msg"; fi)
+
+🔐 Authorized Access Only
+📊 Server: $(hostname)
+🕐 Login Time: \$(date)
+⚠️  All activities are logged and monitored
+
+EOF
+    
+    echo -e "\n${GREEN}✓ Custom banner created successfully!${RESET}"
+    echo -e "${YELLOW}Preview:${RESET}"
+    echo -e "${CYAN}$(cat "$SSH_BANNER_FILE")${RESET}"
+    
+    echo ""
+    read -p "Apply this banner to SSH? (y/n): " apply_choice
+    if [[ "$apply_choice" =~ ^[Yy]$ ]]; then
+        apply_ssh_banner
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to create system info banner
+create_system_banner() {
+    clear
+    display_header_with_timestamp "SYSTEM INFO BANNER"
+    
+    echo -e "\n${GREEN}Creating system information banner...${RESET}"
+    
+    create_system_info_banner > "$SSH_BANNER_FILE"
+    
+    echo -e "\n${GREEN}✓ System info banner created!${RESET}"
+    echo -e "${YELLOW}Preview:${RESET}"
+    echo -e "${CYAN}$(cat "$SSH_BANNER_FILE")${RESET}"
+    
+    echo ""
+    read -p "Apply this banner to SSH? (y/n): " apply_choice
+    if [[ "$apply_choice" =~ ^[Yy]$ ]]; then
+        apply_ssh_banner
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to edit banner manually
+edit_banner_manually() {
+    clear
+    display_header_with_timestamp "EDIT BANNER"
+    
+    echo -e "\n${BLUE}Manual Banner Editor${RESET}"
+    echo -e "${YELLOW}Opening nano editor...${RESET}"
+    echo -e "${WHITE}Press Ctrl+X to save and exit${RESET}"
+    sleep 2
+    
+    if [[ ! -f "$SSH_BANNER_FILE" ]]; then
+        echo "# SSH Login Banner - Edit as needed" > "$SSH_BANNER_FILE"
+    fi
+    
+    nano "$SSH_BANNER_FILE"
+    
+    echo -e "\n${GREEN}Banner editing completed!${RESET}"
+    sleep 2
+}
+
+# Function to preview current banner
+preview_banner() {
+    clear
+    display_header_with_timestamp "BANNER PREVIEW"
+    
+    if [[ -f "$SSH_BANNER_FILE" ]]; then
+        echo -e "\n${YELLOW}Current Banner Preview:${RESET}"
+        echo -e "${BLUE}═══════════════════════════════════════${RESET}"
+        echo -e "${CYAN}$(cat "$SSH_BANNER_FILE")${RESET}"
+        echo -e "${BLUE}═══════════════════════════════════════${RESET}"
+    else
+        echo -e "\n${RED}No banner file found!${RESET}"
+        echo -e "${YELLOW}Create a banner first using options 1 or 2.${RESET}"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to apply SSH banner
+apply_ssh_banner() {
+    if [[ ! -f "$SSH_BANNER_FILE" ]]; then
+        echo -e "\n${RED}No banner file found! Create one first.${RESET}"
+        sleep 2
+        return
+    fi
+    
+    echo -e "\n${GREEN}Applying SSH banner...${RESET}"
+    
+    # Copy banner to system locations
+    cp "$SSH_BANNER_FILE" "$MOTD_FILE"
+    cp "$SSH_BANNER_FILE" "$ISSUE_FILE"
+    
+    # Configure SSH to show banner
+    if ! grep -q "Banner $SSH_BANNER_FILE" /etc/ssh/sshd_config; then
+        echo "Banner $SSH_BANNER_FILE" >> /etc/ssh/sshd_config
+    fi
+    
+    # Restart SSH service
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+    
+    echo -e "${GREEN}✓ SSH banner applied successfully!${RESET}"
+    echo -e "${WHITE}Users will see this banner when they log in via SSH.${RESET}"
+    
+    sleep 3
+}
+
+# Function to remove SSH banner
+remove_ssh_banner() {
+    clear
+    display_header_with_timestamp "REMOVE BANNER"
+    
+    echo -e "\n${RED}Remove SSH Banner${RESET}"
+    echo -e "${YELLOW}This will remove all custom SSH banners.${RESET}"
+    echo ""
+    read -p "Are you sure? (y/n): " confirm
+    
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        # Remove banner files
+        rm -f "$SSH_BANNER_FILE" "$MOTD_FILE" "$ISSUE_FILE"
+        
+        # Remove banner configuration from SSH
+        sed -i '/^Banner /d' /etc/ssh/sshd_config
+        
+        # Restart SSH service
+        systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+        
+        echo -e "\n${GREEN}✓ SSH banner removed successfully!${RESET}"
+    else
+        echo -e "\n${YELLOW}Banner removal cancelled.${RESET}"
+    fi
+    
+    sleep 2
+}
+
 # Print main menu (elegant design)
 print_menu() {
     display_professional_dashboard
     
     # Main Menu Options (elegant two-column layout)
-    echo -e "${RED}[${BLUE}01${RED}] ${WHITE}◇ ${GREEN}Create User${RESET}          ${RED}[${BLUE}07${RED}] ${WHITE}◇ ${YELLOW}User Report${RESET}"
-    echo -e "${RED}[${BLUE}02${RED}] ${WHITE}◇ ${RED}Delete User${RESET}          ${RED}[${BLUE}08${RED}] ${WHITE}◇ ${GREEN}Change Password${RESET}"
-    echo -e "${RED}[${BLUE}03${RED}] ${WHITE}◇ ${YELLOW}Limit User${RESET}           ${RED}[${BLUE}09${RED}] ${WHITE}◇ ${BLUE}User Limiter${RESET}"
-    echo -e "${RED}[${BLUE}04${RED}] ${WHITE}◇ ${BLUE}Connection Mode${RESET}      ${RED}[${BLUE}10${RED}] ${WHITE}◇ ${CYAN}Server Optimization${RESET}"
-    echo -e "${RED}[${BLUE}05${RED}] ${WHITE}◇ ${GREEN}Online Users${RESET}         ${RED}[${BLUE}11${RED}] ${WHITE}◇ ${RED}Uninstall${RESET}"
-    echo -e "${RED}[${BLUE}06${RED}] ${WHITE}◇ ${BLUE}Network Traffic${RESET}      ${RED}[${BLUE}12${RED}] ${WHITE}◇ ${MAGENTA}BadVPN Manager${RESET}"
-    echo -e "                                        ${RED}[${BLUE}00${RED}] ${WHITE}◇ ${YELLOW}EXIT ${GREEN}<${YELLOW}<${RED}< ${RESET}"
+    echo -e "${RED}[${BLUE}01${RED}] ${WHITE}◇ ${GREEN}Create User${RESET}          ${RED}[${BLUE}08${RED}] ${WHITE}◇ ${GREEN}Change Password${RESET}"
+    echo -e "${RED}[${BLUE}02${RED}] ${WHITE}◇ ${RED}Delete User${RESET}          ${RED}[${BLUE}09${RED}] ${WHITE}◇ ${BLUE}User Limiter${RESET}"
+    echo -e "${RED}[${BLUE}03${RED}] ${WHITE}◇ ${YELLOW}Limit User${RESET}           ${RED}[${BLUE}10${RED}] ${WHITE}◇ ${CYAN}Server Optimization${RESET}"
+    echo -e "${RED}[${BLUE}04${RED}] ${WHITE}◇ ${BLUE}Connection Mode${RESET}      ${RED}[${BLUE}11${RED}] ${WHITE}◇ ${RED}Uninstall${RESET}"
+    echo -e "${RED}[${BLUE}05${RED}] ${WHITE}◇ ${GREEN}Online Users${RESET}         ${RED}[${BLUE}12${RED}] ${WHITE}◇ ${MAGENTA}BadVPN Manager${RESET}"
+    echo -e "${RED}[${BLUE}06${RED}] ${WHITE}◇ ${BLUE}Network Traffic${RESET}      ${RED}[${BLUE}13${RED}] ${WHITE}◇ ${YELLOW}Banner Creator${RESET}"
+    echo -e "${RED}[${BLUE}07${RED}] ${WHITE}◇ ${YELLOW}User Report${RESET}         ${RED}[${BLUE}00${RED}] ${WHITE}◇ ${YELLOW}EXIT ${GREEN}<${YELLOW}<${RED}< ${RESET}"
     
     echo ""
     echo -e "\033[0;34m◇───────────────────────────────────────────────◇${RESET}"
@@ -2344,6 +2655,7 @@ main() {
             10) optimize_server ;;
             11) uninstall_script ;;
             12) manage_badvpn ;;
+            13) manage_ssh_banner ;;
             0|00) 
                 echo -e "\n${YELLOW}◇ Exiting MK Script Manager...${RESET}"
                 echo -e "${GREEN}Thank you for using MK Script Manager v4.1!${RESET}"

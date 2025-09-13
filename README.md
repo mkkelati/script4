@@ -58,6 +58,7 @@ menu
 10) Server Optimization  - System performance tuning
 11) Uninstall           - Complete removal
 12) BadVPN Manager      - UDP Gateway for VoIP/OpenVPN
+13) Banner Creator      - SSH login banner designer
 ```
 
 ## 🔐 Key Features
@@ -67,6 +68,7 @@ menu
 - **Real-time monitoring** with auto-refresh every 3 seconds
 - **Advanced User Limiter** with automatic enforcement and violation logging  
 - **BadVPN UDP Gateway** optimized for **4,000 users × 25 connections = 100,000 total**
+- **Banner Creator** with 5 ASCII art styles and system info templates
 - **TCP Performance Tuning**: BBR congestion control, 128MB network buffers
 - **Professional UI** with boxed interfaces and status icons
 - **Safe arithmetic operations** with error handling
@@ -89,6 +91,30 @@ The integrated BadVPN Manager provides UDP forwarding capabilities for improved 
 - **Max Connections per Client**: 25 (maximum user capacity)
 - **Socket Buffer**: 15,000 bytes (enhanced performance)
 - **Total Capacity**: 100,000 concurrent connections
+
+## 🎨 Banner Creator
+The integrated Banner Creator allows you to design professional SSH login banners:
+
+### Features:
+- **5 ASCII Art Styles**: Basic Lines, Stars, Double Lines, Diamonds, Fire Emojis
+- **System Info Banner**: Dynamic server information display
+- **Custom Text Banners**: Personalized welcome messages
+- **Manual Editor**: Direct banner editing with nano
+- **Live Preview**: See banners before applying
+- **SSH Integration**: Automatic application to SSH login
+
+### Banner Styles:
+- **Basic Lines**: Simple professional borders
+- **Stars**: Eye-catching star decorations
+- **Double Lines**: Elegant Unicode box drawing
+- **Diamonds**: Stylish diamond patterns
+- **Fire Emojis**: Modern emoji-based designs
+
+### System Integration:
+- **MOTD Support**: Message of the Day integration
+- **SSH Banner**: Pre-login banner display
+- **Issue.net**: Network login banner
+- **Auto-restart**: SSH service restart for immediate effect
 
 ## 🛡️ Advanced User Limiter
 The integrated User Limiter provides comprehensive connection monitoring and enforcement:
