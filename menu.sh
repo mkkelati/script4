@@ -1715,7 +1715,22 @@ BADVPN_SOCKET_BUFFER="15000"
 
 # Function to check if BadVPN is running
 is_badvpn_running() {
-    ps x | grep -w "$BADVPN_SCREEN_SESSION" | grep -v grep >/dev/null 2>&1
+    # Check if systemd service is running
+    if systemctl is-active badvpn-udpgw.service >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    # Fallback: Check screen session
+    if ps x | grep -w "$BADVPN_SCREEN_SESSION" | grep -v grep >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    # Also check if badvpn-udpgw process is running
+    if pgrep -f "badvpn-udpgw" >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    return 1
 }
 
 # Function to get BadVPN port
@@ -1779,7 +1794,7 @@ StartLimitIntervalSec=0
 Type=simple
 User=root
 Group=root
-ExecStart=/bin/badvpn-udpgw --listen-addr 127.0.0.1:${port} --max-clients ${BADVPN_MAX_CLIENTS} --max-connections-for-client ${BADVPN_MAX_CONNECTIONS_PER_CLIENT} --client-socket-sndbuf ${BADVPN_SOCKET_BUFFER}
+ExecStart=${BADVPN_BINARY} --listen-addr 127.0.0.1:${port} --max-clients ${BADVPN_MAX_CLIENTS} --max-connections-for-client ${BADVPN_MAX_CONNECTIONS_PER_CLIENT} --client-socket-sndbuf ${BADVPN_SOCKET_BUFFER}
 Restart=always
 RestartSec=5
 StartLimitBurst=3
@@ -1820,22 +1835,34 @@ start_badvpn() {
     
     # Create and enable systemd service for persistence
     start_badvpn_process() {
-        # Create systemd service
-        create_badvpn_systemd_service "$port"
-        
-        # Start the service
-        systemctl start badvpn-udpgw.service
-        
-        # Also start in screen session for compatibility
-        if ! screen -list | grep -q "$BADVPN_SCREEN_SESSION"; then
-            screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
-                --listen-addr "127.0.0.1:$port" \
-                --max-clients "$BADVPN_MAX_CLIENTS" \
-                --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
-                --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
+        # Verify binary exists and is executable
+        if [[ ! -x "$BADVPN_BINARY" ]]; then
+            echo -e "${RED}◇ BadVPN binary not found or not executable at $BADVPN_BINARY${RESET}"
+            return 1
         fi
         
-        sleep 2
+        # Create systemd service
+        if ! create_badvpn_systemd_service "$port"; then
+            echo -e "${RED}◇ Failed to create systemd service${RESET}"
+            return 1
+        fi
+        
+        # Start the service
+        if ! systemctl start badvpn-udpgw.service; then
+            echo -e "${YELLOW}◇ Systemd service failed, trying screen session...${RESET}"
+            # Fallback to screen session
+            if ! screen -list | grep -q "$BADVPN_SCREEN_SESSION"; then
+                screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
+                    --listen-addr "127.0.0.1:$port" \
+                    --max-clients "$BADVPN_MAX_CLIENTS" \
+                    --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
+                    --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
+            fi
+        else
+            echo -e "${GREEN}◇ Systemd service started successfully${RESET}"
+        fi
+        
+        sleep 3
     }
     
     fun_bar 'start_badvpn_process' 'sleep 2'
@@ -1847,6 +1874,12 @@ start_badvpn() {
         echo -e "${CYAN}◇ Persistence: ENABLED (will auto-start after reboot)${RESET}"
     else
         echo -e "\n${RED}◇ FAILED TO START BADVPN!${RESET}"
+        echo -e "${YELLOW}◇ Troubleshooting Information:${RESET}"
+        echo -e "${WHITE}  - Binary path: $BADVPN_BINARY${RESET}"
+        echo -e "${WHITE}  - Binary exists: $(if [[ -f "$BADVPN_BINARY" ]]; then echo "YES"; else echo "NO"; fi)${RESET}"
+        echo -e "${WHITE}  - Binary executable: $(if [[ -x "$BADVPN_BINARY" ]]; then echo "YES"; else echo "NO"; fi)${RESET}"
+        echo -e "${WHITE}  - Systemd service status: $(systemctl is-active badvpn-udpgw.service 2>/dev/null || echo "not found")${RESET}"
+        echo -e "${WHITE}  - Port $port available: $(if netstat -ln | grep ":$port " >/dev/null; then echo "NO (in use)"; else echo "YES"; fi)${RESET}"
     fi
     
     sleep 3
