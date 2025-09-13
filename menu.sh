@@ -2111,47 +2111,89 @@ MOTD_FILE="/etc/motd"
 ISSUE_FILE="/etc/issue.net"
 SSH_BANNER_FILE="/etc/ssh/ssh_banner"
 
-# Function to create ASCII art banner
+# Function to get color code for banners
+get_banner_color_code() {
+    local color_choice="$1"
+    
+    case "$color_choice" in
+        "1"|"red")     echo "\033[1;31m" ;;
+        "2"|"green")   echo "\033[1;32m" ;;
+        "3"|"yellow")  echo "\033[1;33m" ;;
+        "4"|"blue")    echo "\033[1;34m" ;;
+        "5"|"magenta") echo "\033[1;35m" ;;
+        "6"|"cyan")    echo "\033[1;36m" ;;
+        "7"|"white")   echo "\033[1;37m" ;;
+        "8"|"orange")  echo "\033[1;91m" ;;
+        "9"|"purple")  echo "\033[1;95m" ;;
+        "10"|"lime")   echo "\033[1;92m" ;;
+        *)             echo "\033[1;37m" ;; # Default to white
+    esac
+}
+
+# Function to display color selection menu
+show_color_menu() {
+    echo -e "\n${BLUE}┌─────────────────────────────────────────┐${RESET}"
+    echo -e "${BLUE}│${WHITE}           SELECT BANNER COLOR           ${BLUE}│${RESET}"
+    echo -e "${BLUE}└─────────────────────────────────────────┘${RESET}\n"
+    
+    echo -e "${RED}1)${RESET} ${RED}■${RESET} Red"
+    echo -e "${GREEN}2)${RESET} ${GREEN}■${RESET} Green"
+    echo -e "${YELLOW}3)${RESET} ${YELLOW}■${RESET} Yellow"
+    echo -e "${BLUE}4)${RESET} ${BLUE}■${RESET} Blue"
+    echo -e "${MAGENTA}5)${RESET} ${MAGENTA}■${RESET} Magenta"
+    echo -e "${CYAN}6)${RESET} ${CYAN}■${RESET} Cyan"
+    echo -e "${WHITE}7)${RESET} ${WHITE}■${RESET} White"
+    echo -e "\033[1;91m8)\033[0m \033[1;91m■\033[0m Orange"
+    echo -e "\033[1;95m9)\033[0m \033[1;95m■\033[0m Purple"
+    echo -e "\033[1;92m10)\033[0m \033[1;92m■\033[0m Lime"
+    echo ""
+}
+
+# Function to create ASCII art banner with color
 create_ascii_banner() {
     local text="$1"
     local style="$2"
+    local color_code="${3:-\033[1;37m}" # Default to white if no color specified
+    local reset_code="\033[0m"
     
     case "$style" in
         "1"|"basic")
-            echo "============================================"
-            echo "          $text"
-            echo "============================================"
+            echo -e "${color_code}============================================${reset_code}"
+            echo -e "${color_code}          $text${reset_code}"
+            echo -e "${color_code}============================================${reset_code}"
             ;;
         "2"|"stars")
-            echo "********************************************"
-            echo "***          $text          ***"
-            echo "********************************************"
+            echo -e "${color_code}********************************************${reset_code}"
+            echo -e "${color_code}***          $text          ***${reset_code}"
+            echo -e "${color_code}********************************************${reset_code}"
             ;;
         "3"|"double")
-            echo "╔══════════════════════════════════════════╗"
-            echo "║          $text           ║"
-            echo "╚══════════════════════════════════════════╝"
+            echo -e "${color_code}╔══════════════════════════════════════════╗${reset_code}"
+            echo -e "${color_code}║          $text           ║${reset_code}"
+            echo -e "${color_code}╚══════════════════════════════════════════╝${reset_code}"
             ;;
         "4"|"diamond")
-            echo "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇"
-            echo "◇          $text           ◇"
-            echo "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇"
+            echo -e "${color_code}◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇${reset_code}"
+            echo -e "${color_code}◇          $text           ◇${reset_code}"
+            echo -e "${color_code}◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇${reset_code}"
             ;;
         "5"|"fire")
-            echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
-            echo "🔥          $text           🔥"
-            echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
+            echo -e "${color_code}🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥${reset_code}"
+            echo -e "${color_code}🔥          $text           🔥${reset_code}"
+            echo -e "${color_code}🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥${reset_code}"
             ;;
         *)
-            echo "============================================"
-            echo "          $text"
-            echo "============================================"
+            echo -e "${color_code}============================================${reset_code}"
+            echo -e "${color_code}          $text${reset_code}"
+            echo -e "${color_code}============================================${reset_code}"
             ;;
     esac
 }
 
 # Function to create system info banner
 create_system_info_banner() {
+    local color_code="${1:-\033[1;37m}" # Default to white if no color specified
+    local reset_code="\033[0m"
     local hostname=$(hostname)
     local os_info=$(lsb_release -d 2>/dev/null | cut -f2 || echo "Linux Server")
     local kernel=$(uname -r)
@@ -2160,17 +2202,17 @@ create_system_info_banner() {
     local memory=$(free -h | grep Mem | awk '{print $3"/"$2}')
     
     cat << EOF
-╔══════════════════════════════════════════════════════════════╗
-║                    WELCOME TO $hostname                    ║
-╠══════════════════════════════════════════════════════════════╣
-║ OS Info    : $os_info
-║ Kernel     : $kernel  
-║ Uptime     : $uptime
-║ Load Avg   : $load_avg
-║ Memory     : $memory
-║ 
-║ 🔐 Authorized Access Only - All Activities are Monitored    ║
-╚══════════════════════════════════════════════════════════════╝
+${color_code}╔══════════════════════════════════════════════════════════════╗${reset_code}
+${color_code}║                    WELCOME TO $hostname                    ║${reset_code}
+${color_code}╠══════════════════════════════════════════════════════════════╣${reset_code}
+${color_code}║ OS Info    : $os_info${reset_code}
+${color_code}║ Kernel     : $kernel${reset_code}  
+${color_code}║ Uptime     : $uptime${reset_code}
+${color_code}║ Load Avg   : $load_avg${reset_code}
+${color_code}║ Memory     : $memory${reset_code}
+${color_code}║ ${reset_code}
+${color_code}║ 🔐 Authorized Access Only - All Activities are Monitored    ║${reset_code}
+${color_code}╚══════════════════════════════════════════════════════════════╝${reset_code}
 EOF
 }
 
@@ -2265,14 +2307,21 @@ create_custom_banner() {
     echo ""
     read -p "Select style [1-5]: " style_choice
     
+    # Show color selection menu
+    show_color_menu
+    read -p "Color choice [1-10]: " color_choice
+    
+    # Get the color code
+    local selected_color=$(get_banner_color_code "$color_choice")
+    
     echo -e "\n${WHITE}Additional message (optional):${RESET}"
     read -p "Welcome message: " welcome_msg
     
-    # Create banner
+    # Create banner with color
     cat > "$SSH_BANNER_FILE" << EOF
-$(create_ascii_banner "$banner_title" "$style_choice")
+$(create_ascii_banner "$banner_title" "$style_choice" "$selected_color")
 
-$(if [[ -n "$welcome_msg" ]]; then echo "$welcome_msg"; fi)
+$(if [[ -n "$welcome_msg" ]]; then echo -e "${selected_color}$welcome_msg\033[0m"; fi)
 
 🔐 Authorized Access Only
 📊 Server: $(hostname)
@@ -2300,13 +2349,20 @@ create_system_banner() {
     clear
     display_header_with_timestamp "SYSTEM INFO BANNER"
     
-    echo -e "\n${GREEN}Creating system information banner...${RESET}"
+    # Show color selection menu
+    show_color_menu
+    read -p "Color choice [1-10]: " color_choice
     
-    create_system_info_banner > "$SSH_BANNER_FILE"
+    # Get the color code
+    local selected_color=$(get_banner_color_code "$color_choice")
     
-    echo -e "\n${GREEN}✓ System info banner created!${RESET}"
+    echo -e "\n${GREEN}Creating system information banner with color...${RESET}"
+    
+    create_system_info_banner "$selected_color" > "$SSH_BANNER_FILE"
+    
+    echo -e "\n${GREEN}✓ System info banner created with color!${RESET}"
     echo -e "${YELLOW}Preview:${RESET}"
-    echo -e "${CYAN}$(cat "$SSH_BANNER_FILE")${RESET}"
+    echo -e "$(cat "$SSH_BANNER_FILE")"
     
     echo ""
     read -p "Apply this banner to SSH? (y/n): " apply_choice
