@@ -150,6 +150,32 @@ echo "[*] Starting stunnel service..."
 systemctl restart stunnel4
 systemctl enable stunnel4
 
+echo "[*] Applying maximum performance TCP optimizations..."
+# Remove existing entries to prevent duplicates
+sed -i '/net.core.rmem_max/d' /etc/sysctl.conf 2>/dev/null
+sed -i '/net.core.wmem_max/d' /etc/sysctl.conf 2>/dev/null
+sed -i '/net.ipv4.tcp_rmem/d' /etc/sysctl.conf 2>/dev/null
+sed -i '/net.ipv4.tcp_wmem/d' /etc/sysctl.conf 2>/dev/null
+sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf 2>/dev/null
+sed -i '/net.core.netdev_max_backlog/d' /etc/sysctl.conf 2>/dev/null
+
+# Add maximum performance network settings
+echo '# MK Script Manager - Maximum Performance Network Settings' >> /etc/sysctl.conf
+echo 'net.core.rmem_max = 134217728' >> /etc/sysctl.conf        # 128MB receive buffer
+echo 'net.core.wmem_max = 134217728' >> /etc/sysctl.conf        # 128MB send buffer
+echo 'net.ipv4.tcp_rmem = 4096 87380 134217728' >> /etc/sysctl.conf  # TCP receive window
+echo 'net.ipv4.tcp_wmem = 4096 65536 134217728' >> /etc/sysctl.conf  # TCP send window
+echo 'net.ipv4.tcp_congestion_control = bbr' >> /etc/sysctl.conf     # Best congestion control
+echo 'net.core.netdev_max_backlog = 5000' >> /etc/sysctl.conf       # Handle more packets
+echo 'net.ipv4.tcp_window_scaling = 1' >> /etc/sysctl.conf          # Enable window scaling
+echo 'net.ipv4.tcp_timestamps = 1' >> /etc/sysctl.conf              # Enable timestamps
+echo 'net.ipv4.tcp_sack = 1' >> /etc/sysctl.conf                    # Enable selective ACK
+echo 'net.ipv4.tcp_no_metrics_save = 1' >> /etc/sysctl.conf         # Don't cache metrics
+echo 'net.ipv4.tcp_moderate_rcvbuf = 1' >> /etc/sysctl.conf         # Auto-tune receive buffer
+
+# Apply settings immediately
+sysctl -p >/dev/null 2>&1
+
 echo "[*] Installing menu system..."
 INSTALL_DIR="/usr/local/bin"
 
@@ -209,11 +235,11 @@ if [[ -x "${INSTALL_DIR}/menu" ]]; then
   echo -e "\033[1;34m║\033[1;36m                                                                              \033[1;34m║\033[0m"
   echo -e "\033[1;34m╠══════════════════════════════════════════════════════════════════════════════╣\033[0m"
   echo -e "\033[1;34m║\033[1;35m 💡 SUPPORT: \033[1;37mhttps://github.com/mkkelati/script4                           \033[1;34m║\033[0m"
-  echo -e "\033[1;34m║\033[1;35m 📧 VERSION: \033[1;37mv4.0 - Professional Edition                                   \033[1;34m║\033[0m"
+  echo -e "\033[1;34m║\033[1;35m 📧 VERSION: \033[1;37mv4.1 - Maximum Performance Edition                            \033[1;34m║\033[0m"
   echo -e "\033[1;34m║\033[1;35m 🌟 STATUS:  \033[1;32mFully Optimized & Ready for Production                        \033[1;34m║\033[0m"
   echo -e "\033[1;34m╚══════════════════════════════════════════════════════════════════════════════╝\033[0m"
   echo ""
-  echo -e "\033[1;33m⭐ Thank you for choosing MK Script Manager v4.0! ⭐\033[0m"
+  echo -e "\033[1;33m⭐ Thank you for choosing MK Script Manager v4.1 - Maximum Performance! ⭐\033[0m"
   echo ""
 else
   echo "[ERROR] Installation failed. Menu command not found."

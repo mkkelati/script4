@@ -677,8 +677,8 @@ EOF
     fi
     
     # Create configuration for mandatory TLS_AES_256_GCM_SHA384 cipher
-  cat > /etc/stunnel/stunnel.conf <<EOC
-# Mandatory TLS_AES_256_GCM_SHA384 cipher configuration
+    cat > /etc/stunnel/stunnel.conf <<EOC
+# MAXIMUM PERFORMANCE SSL/TLS TUNNEL CONFIGURATION
 cert = /etc/stunnel/stunnel.pem
 pid = /var/run/stunnel4/stunnel.pid
 
@@ -690,20 +690,40 @@ pid = /var/run/stunnel4/stunnel.pid
 debug = 7
 output = /var/log/stunnel4/stunnel.log
 
+# PERFORMANCE OPTIMIZATIONS - FULL POWER MODE
+renegotiation = no              # Prevent renegotiation overhead
+compression = zlib              # Enable compression for better throughput
+TIMEOUTbusy = 300              # Longer timeout for heavy traffic
+TIMEOUTconnect = 30            # Quick connection establishment  
+TIMEOUTclose = 10              # Fast connection cleanup
+TIMEOUTidle = 43200            # 12 hours idle timeout
+
 [ssh-tunnel]
 accept = ${port}
 connect = 127.0.0.1:22
 
-# MANDATORY: Only TLS_AES_256_GCM_SHA384 cipher allowed
-ciphersuites = TLS_AES_256_GCM_SHA384
+# HIGH-PERFORMANCE CIPHER SUITE
+ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
 
-# Force TLS 1.3 only for TLS_AES_256_GCM_SHA384
+# Force TLS 1.3 for maximum performance
 sslVersion = TLSv1.3
 options = NO_SSLv2
 options = NO_SSLv3
 options = NO_TLSv1
 options = NO_TLSv1_1
 options = NO_TLSv1_2
+
+# Socket optimizations for maximum throughput
+socket = l:TCP_NODELAY=1       # Disable Nagle algorithm for lower latency
+socket = r:TCP_NODELAY=1       # Both directions
+socket = l:SO_KEEPALIVE=1      # Enable keepalive
+socket = r:SO_KEEPALIVE=1      # Both directions
+socket = l:SO_REUSEADDR=1      # Allow address reuse
+socket = r:SO_REUSEADDR=1      # Both directions
+socket = l:SO_RCVBUF=131072    # 128KB receive buffer
+socket = r:SO_RCVBUF=131072    # 128KB receive buffer  
+socket = l:SO_SNDBUF=131072    # 128KB send buffer
+socket = r:SO_SNDBUF=131072    # 128KB send buffer
 EOC
 
     echo -e "${GREEN}✓ Configuration created${RESET}"
@@ -1648,13 +1668,13 @@ setup_limiter_database() {
 # BADVPN UDP GATEWAY FUNCTIONS
 # ============================================================================
 
-# BadVPN Configuration
+# BadVPN Configuration - Optimized for 2GB RAM Maximum Performance
 BADVPN_DEFAULT_PORT="7300"
 BADVPN_BINARY="/bin/badvpn-udpgw"
 BADVPN_SCREEN_SESSION="udpvpn"
-BADVPN_MAX_CLIENTS="10000"
-BADVPN_MAX_CONNECTIONS_PER_CLIENT="8"
-BADVPN_SOCKET_BUFFER="10000"
+BADVPN_MAX_CLIENTS="4000"
+BADVPN_MAX_CONNECTIONS_PER_CLIENT="25"
+BADVPN_SOCKET_BUFFER="15000"
 
 # Function to check if BadVPN is running
 is_badvpn_running() {
@@ -2134,17 +2154,39 @@ optimize_server() {
     optimization_results+="✓ System cache and logs cleaned\n"
     ((optimization_count++))
     
-    # 3. Optimize network settings
+    # 3. Optimize network settings - MAXIMUM PERFORMANCE
     (
-        # TCP optimization
-        echo 'net.core.rmem_max = 16777216' >> /etc/sysctl.conf 2>/dev/null
-        echo 'net.core.wmem_max = 16777216' >> /etc/sysctl.conf 2>/dev/null
-        echo 'net.ipv4.tcp_rmem = 4096 87380 16777216' >> /etc/sysctl.conf 2>/dev/null
-        echo 'net.ipv4.tcp_wmem = 4096 65536 16777216' >> /etc/sysctl.conf 2>/dev/null
-        echo 'net.ipv4.tcp_congestion_control = bbr' >> /etc/sysctl.conf 2>/dev/null
+        # Remove existing entries to prevent duplicates
+        sed -i '/net.core.rmem_max/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.core.wmem_max/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_rmem/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_wmem/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.core.netdev_max_backlog/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_window_scaling/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_timestamps/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_sack/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_no_metrics_save/d' /etc/sysctl.conf 2>/dev/null
+        sed -i '/net.ipv4.tcp_moderate_rcvbuf/d' /etc/sysctl.conf 2>/dev/null
+        
+        # MAXIMUM PERFORMANCE TCP OPTIMIZATIONS FOR SSL/TLS TUNNEL
+        echo '# MK Script Manager - Maximum Performance Network Settings' >> /etc/sysctl.conf
+        echo 'net.core.rmem_max = 134217728' >> /etc/sysctl.conf        # 128MB receive buffer
+        echo 'net.core.wmem_max = 134217728' >> /etc/sysctl.conf        # 128MB send buffer
+        echo 'net.ipv4.tcp_rmem = 4096 87380 134217728' >> /etc/sysctl.conf  # TCP receive window
+        echo 'net.ipv4.tcp_wmem = 4096 65536 134217728' >> /etc/sysctl.conf  # TCP send window
+        echo 'net.ipv4.tcp_congestion_control = bbr' >> /etc/sysctl.conf     # Best congestion control
+        echo 'net.core.netdev_max_backlog = 5000' >> /etc/sysctl.conf       # Handle more packets
+        echo 'net.ipv4.tcp_window_scaling = 1' >> /etc/sysctl.conf          # Enable window scaling
+        echo 'net.ipv4.tcp_timestamps = 1' >> /etc/sysctl.conf              # Enable timestamps
+        echo 'net.ipv4.tcp_sack = 1' >> /etc/sysctl.conf                    # Enable selective ACK
+        echo 'net.ipv4.tcp_no_metrics_save = 1' >> /etc/sysctl.conf         # Don't cache metrics
+        echo 'net.ipv4.tcp_moderate_rcvbuf = 1' >> /etc/sysctl.conf         # Auto-tune receive buffer
+        
+        # Apply settings immediately
         sysctl -p >/dev/null 2>&1
     ) &
-    show_loading "Optimizing network settings..." 2
+    show_loading "Applying maximum performance network settings..." 3
     wait
     optimization_results+="✓ Network settings optimized\n"
     ((optimization_count++))

@@ -61,12 +61,13 @@ menu
 ```
 
 ## 🔐 Key Features
-- **TLS 1.3** with ChaCha20-Poly1305 encryption
-- **Multi-protocol support**: SSH (22), SSL (443)
-- **Connection limiting** via PAM
+- **TLS 1.3** with ChaCha20-Poly1305 encryption + **MAXIMUM PERFORMANCE** optimizations
+- **Multi-protocol support**: SSH (22), SSL (443) with **128MB buffers**
+- **Connection limiting** via PAM with **25 connections per user**
 - **Real-time monitoring** with auto-refresh every 3 seconds
-- **Advanced User Limiter** with automatic enforcement and violation logging
-- **BadVPN UDP Gateway** for improved VoIP quality and UDP forwarding
+- **Advanced User Limiter** with automatic enforcement and violation logging  
+- **BadVPN UDP Gateway** optimized for **4,000 users × 25 connections = 100,000 total**
+- **TCP Performance Tuning**: BBR congestion control, 128MB network buffers
 - **Professional UI** with boxed interfaces and status icons
 - **Safe arithmetic operations** with error handling
 
@@ -84,9 +85,10 @@ The integrated BadVPN Manager provides UDP forwarding capabilities for improved 
 
 ### Configuration:
 - **Default Port**: 7300 (configurable)
-- **Max Clients**: 10,000
-- **Max Connections per Client**: 8
-- **Socket Buffer**: 10,000 bytes
+- **Max Clients**: 4,000 (optimized for 2GB RAM)
+- **Max Connections per Client**: 25 (maximum user capacity)
+- **Socket Buffer**: 15,000 bytes (enhanced performance)
+- **Total Capacity**: 100,000 concurrent connections
 
 ## 🛡️ Advanced User Limiter
 The integrated User Limiter provides comprehensive connection monitoring and enforcement:
