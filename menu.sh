@@ -678,7 +678,7 @@ EOF
     
     # Create configuration for mandatory TLS_AES_256_GCM_SHA384 cipher
     cat > /etc/stunnel/stunnel.conf <<EOC
-# MAXIMUM PERFORMANCE SSL/TLS TUNNEL CONFIGURATION
+# Mandatory TLS_AES_256_GCM_SHA384 cipher configuration
 cert = /etc/stunnel/stunnel.pem
 pid = /var/run/stunnel4/stunnel.pid
 
@@ -690,40 +690,20 @@ pid = /var/run/stunnel4/stunnel.pid
 debug = 7
 output = /var/log/stunnel4/stunnel.log
 
-# PERFORMANCE OPTIMIZATIONS - FULL POWER MODE
-renegotiation = no
-compression = zlib
-TIMEOUTbusy = 300
-TIMEOUTconnect = 30
-TIMEOUTclose = 10
-TIMEOUTidle = 43200
-
 [ssh-tunnel]
 accept = ${port}
 connect = 127.0.0.1:22
 
-# HIGH-PERFORMANCE CIPHER SUITE
-ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+# MANDATORY: Only TLS_AES_256_GCM_SHA384 cipher allowed
+ciphersuites = TLS_AES_256_GCM_SHA384
 
-# Force TLS 1.3 for maximum performance
+# Force TLS 1.3 only for TLS_AES_256_GCM_SHA384
 sslVersion = TLSv1.3
 options = NO_SSLv2
 options = NO_SSLv3
 options = NO_TLSv1
 options = NO_TLSv1_1
 options = NO_TLSv1_2
-
-# Socket optimizations for maximum throughput
-socket = l:TCP_NODELAY=1
-socket = r:TCP_NODELAY=1
-socket = l:SO_KEEPALIVE=1
-socket = r:SO_KEEPALIVE=1
-socket = l:SO_REUSEADDR=1
-socket = r:SO_REUSEADDR=1
-socket = l:SO_RCVBUF=131072
-socket = r:SO_RCVBUF=131072
-socket = l:SO_SNDBUF=131072
-socket = r:SO_SNDBUF=131072
 EOC
 
     echo -e "${GREEN}✓ Configuration created${RESET}"
