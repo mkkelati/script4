@@ -1757,6 +1757,35 @@ install_badvpn() {
     return 0
 }
 
+# Function to create BadVPN systemd service
+create_badvpn_systemd_service() {
+    local port="${1:-$BADVPN_DEFAULT_PORT}"
+    
+    cat > /etc/systemd/system/badvpn-udpgw.service << EOF
+[Unit]
+Description=BadVPN UDP Gateway
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=$BADVPN_BINARY --listen-addr 127.0.0.1:$port --max-clients $BADVPN_MAX_CLIENTS --max-connections-for-client $BADVPN_MAX_CONNECTIONS_PER_CLIENT --client-socket-sndbuf $BADVPN_SOCKET_BUFFER
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Reload systemd and enable the service
+    systemctl daemon-reload
+    systemctl enable badvpn-udpgw.service
+}
+
 # Function to start BadVPN
 start_badvpn() {
     local port="${1:-$BADVPN_DEFAULT_PORT}"
@@ -1779,18 +1808,21 @@ start_badvpn() {
         return 1
     fi
     
-    # Start BadVPN in screen session
+    # Create and enable systemd service for persistence
     start_badvpn_process() {
-        screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
-            --listen-addr "127.0.0.1:$port" \
-            --max-clients "$BADVPN_MAX_CLIENTS" \
-            --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
-            --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
+        # Create systemd service
+        create_badvpn_systemd_service "$port"
         
-        # Add to autostart if file exists
-        if [[ -f "$AUTOSTART_FILE" ]]; then
-            sed -i '/udpvpn/d' "$AUTOSTART_FILE" 2>/dev/null
-            echo "ps x | grep 'udpvpn' | grep -v 'grep' || screen -dmS udpvpn $BADVPN_BINARY --listen-addr 127.0.0.1:$port --max-clients $BADVPN_MAX_CLIENTS --max-connections-for-client $BADVPN_MAX_CONNECTIONS_PER_CLIENT --client-socket-sndbuf $BADVPN_SOCKET_BUFFER" >> "$AUTOSTART_FILE"
+        # Start the service
+        systemctl start badvpn-udpgw.service
+        
+        # Also start in screen session for compatibility
+        if ! screen -list | grep -q "$BADVPN_SCREEN_SESSION"; then
+            screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
+                --listen-addr "127.0.0.1:$port" \
+                --max-clients "$BADVPN_MAX_CLIENTS" \
+                --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
+                --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
         fi
         
         sleep 2
@@ -1802,6 +1834,7 @@ start_badvpn() {
         echo -e "\n${GREEN}◇ BADVPN SUCCESSFULLY ACTIVATED ON PORT $port!${RESET}"
         echo -e "${WHITE}◇ Session: $BADVPN_SCREEN_SESSION${RESET}"
         echo -e "${WHITE}◇ Max Clients: $BADVPN_MAX_CLIENTS${RESET}"
+        echo -e "${CYAN}◇ Persistence: ENABLED (will auto-start after reboot)${RESET}"
     else
         echo -e "\n${RED}◇ FAILED TO START BADVPN!${RESET}"
     fi
@@ -1818,15 +1851,21 @@ stop_badvpn() {
     echo ""
     
     stop_badvpn_process() {
+        # Stop and disable systemd service
+        systemctl stop badvpn-udpgw.service 2>/dev/null
+        systemctl disable badvpn-udpgw.service 2>/dev/null
+        
+        # Remove systemd service file
+        rm -f /etc/systemd/system/badvpn-udpgw.service
+        systemctl daemon-reload
+        
         # Kill screen sessions
         for pid in $(screen -ls | grep ".$BADVPN_SCREEN_SESSION" | awk '{print $1}'); do
             screen -r -S "$pid" -X quit 2>/dev/null
         done
         
-        # Remove from autostart
-        if [[ -f "$AUTOSTART_FILE" ]]; then
-            sed -i '/udpvpn/d' "$AUTOSTART_FILE" 2>/dev/null
-        fi
+        # Kill any remaining badvpn processes
+        pkill -f "badvpn-udpgw" 2>/dev/null
         
         # Clean up screen sessions
         screen -wipe >/dev/null 2>&1
@@ -1837,6 +1876,7 @@ stop_badvpn() {
     
     if ! is_badvpn_running; then
         echo -e "\n${GREEN}◇ BADVPN SUCCESSFULLY STOPPED!${RESET}"
+        echo -e "${CYAN}◇ Persistence: DISABLED (will NOT auto-start after reboot)${RESET}"
     else
         echo -e "\n${RED}◇ FAILED TO STOP BADVPN!${RESET}"
     fi
@@ -1852,6 +1892,14 @@ show_badvpn_status() {
     echo -e "\n${BLUE}◇ BADVPN UDP GATEWAY STATUS${RESET}"
     echo -e "${BLUE}============================${RESET}\n"
     
+    # Check persistence status
+    local persistence_status="DISABLED"
+    local persistence_color="${RED}"
+    if systemctl is-enabled badvpn-udpgw.service >/dev/null 2>&1; then
+        persistence_status="ENABLED"
+        persistence_color="${GREEN}"
+    fi
+    
     if is_badvpn_running; then
         local port=$(get_badvpn_port)
         echo -e "${GREEN}Status: ${WHITE}RUNNING ♦${RESET}"
@@ -1859,6 +1907,7 @@ show_badvpn_status() {
         echo -e "${GREEN}Session: ${WHITE}$BADVPN_SCREEN_SESSION${RESET}"
         echo -e "${GREEN}Max Clients: ${WHITE}$BADVPN_MAX_CLIENTS${RESET}"
         echo -e "${GREEN}Max Connections/Client: ${WHITE}$BADVPN_MAX_CONNECTIONS_PER_CLIENT${RESET}"
+        echo -e "${persistence_color}Persistence: ${WHITE}$persistence_status${RESET}"
         
         # Show process info
         local pid=$(ps aux | grep "$BADVPN_SCREEN_SESSION" | grep -v grep | awk '{print $2}' | head -1)
@@ -1876,6 +1925,7 @@ show_badvpn_status() {
         
     else
         echo -e "${RED}Status: ${WHITE}STOPPED ○${RESET}"
+        echo -e "${persistence_color}Persistence: ${WHITE}$persistence_status${RESET}"
         echo ""
         echo -e "${YELLOW}BadVPN is not running${RESET}"
     fi
@@ -1886,6 +1936,14 @@ show_badvpn_status() {
     echo -e "${WHITE}• Improves VoIP call quality${RESET}"
     echo -e "${WHITE}• Reduces packet loss for UDP connections${RESET}"
     echo -e "${WHITE}• Essential for UDP-based applications${RESET}"
+    
+    if [[ "$persistence_status" == "ENABLED" ]]; then
+        echo ""
+        echo -e "${CYAN}🔄 Auto-Start: BadVPN will automatically start after server reboot${RESET}"
+    else
+        echo ""
+        echo -e "${YELLOW}⚠️  Auto-Start: BadVPN will NOT start after server reboot${RESET}"
+    fi
     
     echo ""
     read -p "Press Enter to continue..."
@@ -1946,16 +2004,17 @@ change_badvpn_port() {
     
     # Start with new port
     start_badvpn_process() {
+        # Update systemd service with new port
+        create_badvpn_systemd_service "$new_port"
+        systemctl start badvpn-udpgw.service
+        
+        # Also update screen session
         screen -dmS "$BADVPN_SCREEN_SESSION" "$BADVPN_BINARY" \
             --listen-addr "127.0.0.1:$new_port" \
             --max-clients "$BADVPN_MAX_CLIENTS" \
             --max-connections-for-client "$BADVPN_MAX_CONNECTIONS_PER_CLIENT" \
             --client-socket-sndbuf "$BADVPN_SOCKET_BUFFER"
         
-        if [[ -f "$AUTOSTART_FILE" ]]; then
-            sed -i '/udpvpn/d' "$AUTOSTART_FILE" 2>/dev/null
-            echo "ps x | grep 'udpvpn' | grep -v 'grep' || screen -dmS udpvpn $BADVPN_BINARY --listen-addr 127.0.0.1:$new_port --max-clients $BADVPN_MAX_CLIENTS --max-connections-for-client $BADVPN_MAX_CONNECTIONS_PER_CLIENT --client-socket-sndbuf $BADVPN_SOCKET_BUFFER" >> "$AUTOSTART_FILE"
-        fi
         sleep 2
     }
     
