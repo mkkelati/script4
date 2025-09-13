@@ -837,19 +837,67 @@ EOC
     fi
 }
 
-# Show online users with real-time monitoring
+# Timer tracking directory
+USER_TIMER_DIR="/tmp/mk-script-timers"
+
+# Function to initialize timer tracking
+init_user_timers() {
+    mkdir -p "$USER_TIMER_DIR"
+}
+
+# Function to start timer for a user
+start_user_timer() {
+    local username="$1"
+    if [[ -n "$username" ]]; then
+        echo "$(date +%s)" > "$USER_TIMER_DIR/${username}.timer"
+    fi
+}
+
+# Function to stop timer for a user
+stop_user_timer() {
+    local username="$1"
+    if [[ -n "$username" ]]; then
+        rm -f "$USER_TIMER_DIR/${username}.timer" 2>/dev/null
+    fi
+}
+
+# Function to get connection time for a user
+get_user_connection_time() {
+    local username="$1"
+    local timer_file="$USER_TIMER_DIR/${username}.timer"
+    
+    if [[ -f "$timer_file" ]]; then
+        local start_time=$(cat "$timer_file" 2>/dev/null || echo "0")
+        local current_time=$(date +%s)
+        local duration=$((current_time - start_time))
+        
+        # Convert to hours:minutes:seconds
+        local hours=$((duration / 3600))
+        local minutes=$(((duration % 3600) / 60))
+        local seconds=$((duration % 60))
+        
+        printf "%02d:%02d:%02d" "$hours" "$minutes" "$seconds"
+    else
+        echo "00:00:00"
+    fi
+}
+
+# Show online users with real-time monitoring and stopwatch timer
 show_online_users() {
     local refresh_count=0
+    
+    # Initialize timer tracking
+    init_user_timers
     
     while true; do
         clear
         display_header_with_timestamp "ONLINE USERS MONITOR"
         
-        echo -e "\n${BLUE}┌─────────────────────────────────────────────────────────────┐${RESET}"
-        echo -e "${BLUE}│${WHITE}                    REAL-TIME CONNECTIONS                    ${BLUE}│${RESET}"
-        echo -e "${BLUE}├─────────────────────────────────────────────────────────────┤${RESET}"
-        printf "${BLUE}│${WHITE} %-12s │ %-8s │ %-8s │ %-8s │ %-8s │ %-6s ${BLUE}│${RESET}\n" "USERNAME" "SSH" "DROPBEAR" "OPENVPN" "TOTAL" "STATUS"
-        echo -e "${BLUE}├─────────────────────────────────────────────────────────────┤${RESET}"
+        echo -e "\n${BLUE}┌──────────────────────────────────────────────────────────┐${RESET}"
+        echo -e "${BLUE}│${WHITE}                REAL-TIME CONNECTIONS & TIMERS            ${BLUE}│${RESET}"
+        echo -e "${BLUE}├──────────────────────────────────────────────────────────┤${RESET}"
+        printf "${BLUE}│${WHITE} %-12s │ %-8s │ %-12s │ %-8s │ %-6s ${BLUE}│${RESET}\n" "USERNAME" "SSH" "TIME ONLINE" "TOTAL" "STATUS"
+        echo -e "${BLUE}├──────────────────────────────────────────────────────────┤${RESET}"
         
         local total_online=0
         local any_users=false
@@ -860,15 +908,20 @@ show_online_users() {
                 any_users=true
                 
                 local ssh_count=$(safe_number $(get_ssh_connections "$username"))
-                local dropbear_count=$(safe_number $(get_dropbear_connections "$username"))
-                local openvpn_count=$(safe_number $(get_openvpn_connections "$username"))
-                local total_conn=$((ssh_count + dropbear_count + openvpn_count))
+                local total_conn=$ssh_count
                 
+                # Timer logic: Start timer when user connects, stop when disconnects
                 if [[ $total_conn -gt 0 ]]; then
+                    # User is online - start timer if not already started
+                    if [[ ! -f "$USER_TIMER_DIR/${username}.timer" ]]; then
+                        start_user_timer "$username"
+                    fi
                     total_online=$((total_online + 1))
                     local status_icon="🟢"
                     local status_color="${GREEN}"
                 else
+                    # User is offline - stop timer and reset
+                    stop_user_timer "$username"
                     local status_icon="🔴"
                     local status_color="${RED}"
                 fi
@@ -879,22 +932,26 @@ show_online_users() {
                     status_color="${YELLOW}"
                 fi
                 
-                printf "${BLUE}│${WHITE} %-12s ${BLUE}│${WHITE} %-8s ${BLUE}│${WHITE} %-8s ${BLUE}│${WHITE} %-8s ${BLUE}│${status_color} %-8s ${BLUE}│${status_color} %-6s ${BLUE}│${RESET}\n" \
-                    "$username" "$ssh_count" "$dropbear_count" "$openvpn_count" "$total_conn" "$status_icon"
+                # Get connection time
+                local connection_time=$(get_user_connection_time "$username")
+                
+                printf "${BLUE}│${WHITE} %-12s ${BLUE}│${WHITE} %-8s ${BLUE}│${CYAN} %-12s ${BLUE}│${status_color} %-8s ${BLUE}│${status_color} %-6s ${BLUE}│${RESET}\n" \
+                    "$username" "$ssh_count" "$connection_time" "$total_conn" "$status_icon"
                     
             done < "$USER_LIST_FILE"
         fi
         
         if [[ "$any_users" == false ]]; then
-            printf "${BLUE}│${YELLOW} %-57s ${BLUE}│${RESET}\n" "No users found in database"
+            printf "${BLUE}│${YELLOW} %-54s ${BLUE}│${RESET}\n" "No users found in database"
         fi
         
-        echo -e "${BLUE}├─────────────────────────────────────────────────────────────┤${RESET}"
-        printf "${BLUE}│${WHITE} Total Users Online: ${GREEN}%-2d${WHITE}                               ${BLUE}│${RESET}\n" "$total_online"
-        echo -e "${BLUE}│${WHITE} Auto-refresh: ${GREEN}%-2d${WHITE} times                              ${BLUE}│${RESET}\n" "$refresh_count"
-        echo -e "${BLUE}└─────────────────────────────────────────────────────────────┘${RESET}"
+        echo -e "${BLUE}├──────────────────────────────────────────────────────────┤${RESET}"
+        printf "${BLUE}│${WHITE} Total Users Online: ${GREEN}%-2d${WHITE}                            ${BLUE}│${RESET}\n" "$total_online"
+        printf "${BLUE}│${WHITE} Auto-refresh: ${GREEN}%-2d${WHITE} times                           ${BLUE}│${RESET}\n" "$refresh_count"
+        echo -e "${BLUE}└──────────────────────────────────────────────────────────┘${RESET}"
         
         echo -e "\n${WHITE}🟢 Online  🔴 Offline  ⏰ Expired${RESET}"
+        echo -e "${CYAN}⏱️  Timer starts when user connects, resets to 00:00:00 when disconnected${RESET}"
         echo -e "${GREEN}Press ${WHITE}ENTER${GREEN} to return to main menu or wait for auto-refresh...${RESET}"
         
         # Wait for user input or timeout after 3 seconds
