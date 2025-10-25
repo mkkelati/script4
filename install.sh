@@ -189,6 +189,19 @@ else
   exit 1
 fi
 
+echo "[*] Installing Cloud Run Relay manager..."
+# Download or copy the cloudrun-relay-connection-mode script
+if [[ -f "cloudrun-relay-connection-mode.sh" ]]; then
+  cp cloudrun-relay-connection-mode.sh "${INSTALL_DIR}/cloudrun-relay-setup"
+  chmod +x "${INSTALL_DIR}/cloudrun-relay-setup"
+  echo "[*] Cloud Run Relay manager installed"
+elif wget -q https://raw.githubusercontent.com/mkkelati/script4/main/cloudrun-relay-connection-mode.sh -O "${INSTALL_DIR}/cloudrun-relay-setup"; then
+  chmod +x "${INSTALL_DIR}/cloudrun-relay-setup"
+  echo "[*] Cloud Run Relay manager downloaded and installed"
+else
+  echo "[WARNING] Cloud Run Relay manager not found - will be available after git pull"
+fi
+
 echo "[*] Setting up configuration..."
 mkdir -p /etc/mk-script
 touch /etc/mk-script/users.txt

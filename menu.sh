@@ -515,7 +515,8 @@ limit_user() {
 }
 
 # Configure SSH-SSL tunnel
-configure_tunnel() {
+# Original stunnel configuration function
+configure_stunnel_direct() {
     clear
     display_header_with_timestamp "SSL TUNNEL"
     
@@ -815,6 +816,46 @@ EOC
         echo -e "${WHITE}cat /etc/stunnel/stunnel.conf${RESET}"
         echo -e "${WHITE}stunnel4 /etc/stunnel/stunnel.conf${RESET} (manual start)"
     fi
+}
+
+# Connection Mode Menu - New menu with stunnel and Cloud Run relay options
+configure_tunnel() {
+    while true; do
+        clear
+        display_header_with_timestamp "CONNECTION MODE"
+        
+        echo -e "\n${CYAN}╔═══════════════════════════════════════════════════╗${RESET}"
+        echo -e "${CYAN}║${NC}        ${PURPLE}CONNECTION MODE MENU${NC}              ${CYAN}║${RESET}"
+        echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${RESET}"
+        echo ""
+        echo -e "${GREEN}1)${NC} Configure SSH-SSL Tunnel (stunnel)"
+        echo -e "${GREEN}2)${NC} Cloud Run Relay Setup"
+        echo -e "${RED}0)${NC} Back to Main Menu"
+        echo ""
+        read -p "Select option: " conn_option
+        
+        case $conn_option in
+            1)
+                configure_stunnel_direct
+                ;;
+            2)
+                if [[ -f /usr/local/bin/cloudrun-relay-setup ]]; then
+                    bash /usr/local/bin/cloudrun-relay-setup
+                else
+                    echo -e "${RED}Cloud Run Relay script not found!${RESET}"
+                    echo -e "${YELLOW}Please run: cp cloudrun-relay-connection-mode.sh /usr/local/bin/cloudrun-relay-setup${RESET}"
+                    sleep 3
+                fi
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option!${RESET}"
+                sleep 1
+                ;;
+        esac
+    done
 }
 
 # Timer tracking directory
